@@ -300,7 +300,8 @@ export default function DiagramApp() {
     setDataContent(component.content || "")
   }
 
-  const saveContractChanges = () => {
+  const saveContractChanges = async () => {
+    console.log("Saving contract changes:", contractContent)
     if (!editingContract) return
 
     setComponents((prev) =>
@@ -309,6 +310,31 @@ export default function DiagramApp() {
       ),
     )
     setEditingContract(null)
+
+    // Call LLM API with contractContent as prompt
+    if (contractContent && contractContent.trim().length > 0) {
+      try {
+        const response = await fetch("/api/code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: contractContent }),
+        })
+        const data = await response.json()
+        console.log("LLM Response:", data)
+        toast({
+          title: "LLM Response",
+          description: data.artifact ? data.artifact.slice(0, 300) + (data.artifact.length > 300 ? '...' : '') : "No artifact returned.",
+          variant: "default",
+        })
+      } catch (err) {
+        console.error("Failed to fetch LLM response:", err)
+        toast({
+          title: "LLM Error",
+          description: "Failed to fetch LLM response.",
+          variant: "destructive",
+        })
+      }
+    }
   }
 
   const saveDataChanges = () => {
