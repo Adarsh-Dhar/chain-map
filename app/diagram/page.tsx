@@ -16,6 +16,7 @@ interface Component {
   label?: string
   name?: string
   chain?: string
+  content?: string
 }
 
 interface Connection {
@@ -63,6 +64,9 @@ export default function DiagramApp() {
   const [editingContract, setEditingContract] = useState<Component | null>(null)
   const [contractName, setContractName] = useState("")
   const [selectedChain, setSelectedChain] = useState("sepolia")
+  const [contractContent, setContractContent] = useState("")
+  const [editingData, setEditingData] = useState<Component | null>(null)
+  const [dataContent, setDataContent] = useState("")
 
   const copyToClipboard = async (address: string) => {
     try {
@@ -288,6 +292,12 @@ export default function DiagramApp() {
     setEditingContract(component)
     setContractName(component.name || "")
     setSelectedChain(component.chain || "sepolia")
+    setContractContent(component.content || "")
+  }
+
+  const openDataEditor = (component: Component) => {
+    setEditingData(component)
+    setDataContent(component.content || "")
   }
 
   const saveContractChanges = () => {
@@ -295,10 +305,20 @@ export default function DiagramApp() {
 
     setComponents((prev) =>
       prev.map((comp) =>
-        comp.id === editingContract.id ? { ...comp, name: contractName, chain: selectedChain } : comp,
+        comp.id === editingContract.id ? { ...comp, name: contractName, chain: selectedChain, content: contractContent } : comp,
       ),
     )
     setEditingContract(null)
+  }
+
+  const saveDataChanges = () => {
+    if (!editingData) return
+    setComponents((prev) =>
+      prev.map((comp) =>
+        comp.id === editingData.id ? { ...comp, content: dataContent } : comp,
+      ),
+    )
+    setEditingData(null)
   }
 
   const renderComponent = (component: Component) => {
@@ -325,6 +345,9 @@ export default function DiagramApp() {
               <span className="text-xs font-semibold">Contract</span>
             </div>
             <div className="text-xs font-medium text-center mb-1">{component.name || "Unnamed"}</div>
+            {component.content && (
+              <div className="text-xs text-gray-500 text-center mb-1 whitespace-pre-line">{component.content}</div>
+            )}
             <div className={`text-xs px-2 py-1 rounded text-white ${chainInfo.color}`}>{chainInfo.label}</div>
             {!connectionMode && (
               <>
@@ -360,16 +383,30 @@ export default function DiagramApp() {
           >
             <Circle className="w-4 h-4 mr-1" />
             <span className="text-xs">Data</span>
+            {component.content && (
+              <div className="text-xs text-gray-500 text-center mt-1 whitespace-pre-line">{component.content}</div>
+            )}
             {!connectionMode && (
-              <button
-                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  deleteComponent(component.id)
-                }}
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
+              <>
+                <button
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteComponent(component.id)
+                  }}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+                <button
+                  className="absolute -top-2 -left-2 w-5 h-5 bg-blue-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openDataEditor(component)
+                  }}
+                >
+                  ✏️
+                </button>
+              </>
             )}
           </div>
         )
@@ -592,12 +629,47 @@ export default function DiagramApp() {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Content</label>
+                  <textarea
+                    value={contractContent}
+                    onChange={(e) => setContractContent(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter contract content (optional)"
+                    rows={3}
+                  />
+                </div>
               </div>
               <div className="flex justify-end space-x-3 mt-6">
                 <Button variant="outline" onClick={() => setEditingContract(null)}>
                   Cancel
                 </Button>
                 <Button onClick={saveContractChanges}>Save Changes</Button>
+              </div>
+            </div>
+          </div>
+        )}
+        {editingData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-96">
+              <h3 className="text-lg font-semibold mb-4">Edit Data</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Content</label>
+                  <textarea
+                    value={dataContent}
+                    onChange={(e) => setDataContent(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter data content (optional)"
+                    rows={3}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <Button variant="outline" onClick={() => setEditingData(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={saveDataChanges}>Save Changes</Button>
               </div>
             </div>
           </div>
