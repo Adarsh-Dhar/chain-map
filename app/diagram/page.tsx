@@ -542,11 +542,31 @@ export default function DiagramApp() {
     console.log("Data node content:", ccipPattern.dataNode?.content);
     const prompt = generateCCIPPrompt(ccipPattern.sender, ccipPattern.dataNode, ccipPattern.receiver, ccipPattern.extraContracts);
     console.log("Prompt sent to LLM:\n", prompt);
+
+    // Build contractDataFeeds object
+    const contractDataFeeds: Record<string, { name: string; address: string }[]> = {};
+    components.forEach(comp => {
+      if (comp.type === 'contract') {
+        const connectedFeeds = connections
+          .filter(conn => conn.toId === comp.id)
+          .map(conn => components.find(c => c.id === conn.fromId && c.type === 'datafeed'))
+          .filter(Boolean)
+          .map(feed => ({
+            name: feed!.label!,
+            address: dataFeeds.find(df => df.name === feed!.label)?.address || ''
+          }))
+          .filter(feed => feed.address);
+        if (connectedFeeds.length > 0) {
+          contractDataFeeds[comp.name || comp.id] = connectedFeeds;
+        }
+      }
+    });
+
     try {
       const response = await fetch("/api/code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, contractDataFeeds }),
       });
       const data = await response.json();
       setCCIPCode(data.artifact || "No code returned.");

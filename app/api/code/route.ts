@@ -40,7 +40,21 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const prompt = body.prompt;
+    let prompt = body.prompt;
+    // Accept optional contractDataFeeds: { [contractName: string]: { name: string, address: string }[] }
+    const contractDataFeeds = body.contractDataFeeds;
+    if (contractDataFeeds && typeof contractDataFeeds === 'object') {
+      // For each contract, append data feed info to the prompt
+      Object.entries(contractDataFeeds).forEach(([contractName, feeds]) => {
+        if (Array.isArray(feeds) && feeds.length > 0) {
+          prompt += `\n\nContract '${contractName}' is connected to the following Chainlink Data Feeds:`;
+          feeds.forEach((feed: any) => {
+            prompt += `\n- ${feed.name} at address ${feed.address}`;
+            prompt += `\nInclude an explanation and a Solidity code snippet for reading from this data feed using AggregatorV3Interface at the above address.`;
+          });
+        }
+      });
+    }
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json({ error: "Missing or invalid prompt" }, { status: 400 });
     }
