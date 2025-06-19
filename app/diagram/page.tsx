@@ -72,6 +72,13 @@ export default function DiagramApp() {
   const [ccipCode, setCCIPCode] = useState<string>("")
   const [ccipLoading, setCCIPLoading] = useState(false)
   const [ccipError, setCCIPError] = useState<string | null>(null)
+  const [showPasswordInput, setShowPasswordInput] = useState(false)
+  const [password, setPassword] = useState("")
+  const [isCreatingCodeServer, setIsCreatingCodeServer] = useState(false)
+  const [codeServerInfo, setCodeServerInfo] = useState<{ 
+    url: string; 
+    generatedFile?: string;
+  } | null>(null)
 
   const copyToClipboard = async (address: string) => {
     try {
@@ -569,7 +576,42 @@ export default function DiagramApp() {
         body: JSON.stringify({ prompt, contractDataFeeds }),
       });
       const data = await response.json();
+      
+      // Set the code for display in the dialog
       setCCIPCode(data.artifact || "No code returned.");
+      
+      // Write the code to files using code-server
+      if (data.artifact) {
+        try {
+          const writeResponse = await fetch("/api/code-server", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompts: [data.artifact],
+              config: {
+                baseDir: "generated/ccip",
+                defaultFileName: "CCIPContracts.sol"
+              }
+            }),
+          });
+          
+          if (!writeResponse.ok) {
+            throw new Error("Failed to write code files");
+          }
+          
+          toast({
+            title: "Success",
+            description: "CCIP contracts have been generated and saved to the generated/ccip directory",
+          });
+        } catch (writeErr) {
+          console.error("Failed to write code files:", writeErr);
+          toast({
+            title: "Error",
+            description: "Failed to save the generated code files",
+            variant: "destructive",
+          });
+        }
+      }
     } catch (err) {
       setCCIPError("Failed to fetch generated code.");
       setCCIPCode("");
@@ -796,8 +838,13 @@ export default function DiagramApp() {
           </div>
         )}
         {/* CCIP Generated Code Dialog */}
-        <Dialog open={showCCIPDialog} onOpenChange={setShowCCIPDialog}>
-          <DialogContent>
+        <Dialog open={showCCIPDialog} onOpenChange={(open) => {
+          setShowCCIPDialog(open);
+          if (!open) {
+            setCodeServerInfo(null);
+          }
+        }}>
+          <DialogContent className="max-w-3xl">
             <DialogHeader>
               <DialogTitle>Generated CCIP Contracts</DialogTitle>
               <DialogDescription>
@@ -809,9 +856,97 @@ export default function DiagramApp() {
             ) : ccipError ? (
               <div className="text-center py-8 text-red-500">{ccipError}</div>
             ) : (
-              <pre className="bg-gray-100 rounded p-4 overflow-x-auto text-xs max-h-96 whitespace-pre-wrap">
-                {ccipCode}
-              </pre>
+              <div className="space-y-4">
+                <pre className="bg-gray-100 rounded p-4 overflow-x-auto text-xs max-h-96 whitespace-pre-wrap">
+                  {ccipCode}
+                </pre>
+                {codeServerInfo ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                    <h3 className="text-sm font-medium text-blue-900">VS Code Server Access Details</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-blue-700">URL:</span>
+                        <div className="flex items-center space-x-2">
+                          <code className="bg-blue-100 px-2 py-1 rounded text-blue-900">{codeServerInfo.url}</code>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              window.open(codeServerInfo.url, '_blank');
+                            }}
+                          >
+                            Open
+                          </Button>
+                        </div>
+                      </div>
+                      {codeServerInfo.generatedFile && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-blue-700">Contract File:</span>
+                          <code className="bg-blue-100 px-2 py-1 rounded text-blue-900">
+                            {codeServerInfo.generatedFile}
+                          </code>
+                        </div>
+                      )}
+                      <div className="mt-4 text-sm text-blue-700 space-y-1">
+                        <p>A dedicated workspace has been created with:</p>
+                        <ul className="list-disc list-inside pl-2 space-y-1">
+                          <li>Generated CCIP contract file</li>
+                          <li>README with usage instructions</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={async () => {
+                        setIsCreatingCodeServer(true);
+                        try {
+                          const response = await fetch("/api/code-server/create", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              llmResponse: ccipCode
+                            }),
+                          });
+                          
+                          if (!response.ok) {
+                            throw new Error("Failed to create VS Code server");
+                          }
+                          
+                          const data = await response.json();
+                          
+                          if (data.success && data.url) {
+                            setCodeServerInfo({
+                              url: data.url,
+                              generatedFile: data.generatedFile,
+                            });
+                            
+                            toast({
+                              title: "Success",
+                              description: "VS Code workspace created with generated contracts",
+                            });
+                          } else {
+                            throw new Error("Invalid server response");
+                          }
+                        } catch (error) {
+                          toast({
+                            title: "Error",
+                            description: "Failed to create VS Code workspace",
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setIsCreatingCodeServer(false);
+                        }
+                      }}
+                      disabled={isCreatingCodeServer}
+                      variant="secondary"
+                    >
+                      {isCreatingCodeServer ? "Creating Workspace..." : "Open in VS Code"}
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
           </DialogContent>
         </Dialog>
