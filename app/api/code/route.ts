@@ -51,11 +51,15 @@ export async function POST(req: NextRequest) {
     let foundryArtifact = data.choices?.[0]?.message?.content?.trim();
     // Extract only the <boltArtifact>...</boltArtifact> block
     const artifactMatch = foundryArtifact?.match(/<boltArtifact[\s\S]*?<\/boltArtifact>/);
-    if (artifactMatch) {
-      foundryArtifact = artifactMatch[0];
+    let artifact = artifactMatch ? artifactMatch[0] : foundryArtifact;
+    // Add type field for CCIP
+    let type = undefined;
+    if (/chainlink ccip|ccip/i.test(prompt)) {
+      type = 'ccip';
     }
     return NextResponse.json({
-      artifact: foundryArtifact,
+      artifact,
+      type,
       raw: data,
     });
   } catch (error: any) {

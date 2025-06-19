@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Copy, Square, Circle, Diamond, Trash2, ArrowRight, MousePointer, Home } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 interface Component {
   id: string
@@ -67,6 +68,10 @@ export default function DiagramApp() {
   const [contractContent, setContractContent] = useState("")
   const [editingData, setEditingData] = useState<Component | null>(null)
   const [dataContent, setDataContent] = useState("")
+  const [showCCIPDialog, setShowCCIPDialog] = useState(false)
+  const [ccipCode, setCCIPCode] = useState<string>("")
+  const [ccipLoading, setCCIPLoading] = useState(false)
+  const [ccipError, setCCIPError] = useState<string | null>(null)
 
   const copyToClipboard = async (address: string) => {
     try {
@@ -488,6 +493,60 @@ export default function DiagramApp() {
     }
   }
 
+  // Detect contract -> data -> contract pattern
+  const findCCIPPattern = () => {
+    // Find all data nodes
+    const dataNodes = components.filter((c) => c.type === "data")
+    for (const dataNode of dataNodes) {
+      // Find incoming connection (from contract)
+      const incoming = connections.find(
+        (conn) => conn.toId === dataNode.id && components.find((c) => c.id === conn.fromId)?.type === "contract"
+      )
+      // Find outgoing connection (to contract)
+      const outgoing = connections.find(
+        (conn) => conn.fromId === dataNode.id && components.find((c) => c.id === conn.toId)?.type === "contract"
+      )
+      if (incoming && outgoing) {
+        const sender = components.find((c) => c.id === incoming.fromId)
+        const receiver = components.find((c) => c.id === outgoing.toId)
+        if (sender && receiver) {
+          return { sender, dataNode, receiver }
+        }
+      }
+    }
+    return null
+  }
+
+  const ccipPattern = findCCIPPattern()
+
+  // Generate prompt for LLM
+  const generateCCIPPrompt = (sender: Component, dataNode: Component, receiver: Component) => {
+    return `You are to generate two smart contracts for a cross-chain message passing scenario using Chainlink CCIP.\n\n**Scenario:**\n- There is a sender contract on the source chain (e.g., Avalanche Fuji).\n- There is a receiver contract on the destination chain (e.g., Ethereum Sepolia).\n- The sender contract sends a message (the data node content) to the receiver contract using Chainlink CCIP.\n\n**Requirements:**\n1. **Sender Contract**\n   - Deployable on Avalanche Fuji.\n   - Takes as constructor arguments:\n     - The CCIP router address for Avalanche Fuji: \`0xF694E193200268f9a4868e4Aa017A0118C9a8177\`\n     - The LINK token address for Avalanche Fuji: \`0x0b9d5D9136855f6FEc3c0993feE6E9CE8a297846\`\n   - Has a function to send a message to a receiver contract on another chain, using the CCIP router.\n   - The message to send is: **\"${dataNode.content || "Hello World!"}\"**.\n   - The destination chain selector is: \`16015286601757825753\` (for Ethereum Sepolia).\n   - The receiver contract address is: **\"<RECEIVER_CONTRACT_ADDRESS>\"** (to be filled after deployment).\n\n2. **Receiver Contract**\n   - Deployable on Ethereum Sepolia.\n   - Takes as constructor argument:\n     - The CCIP router address for Sepolia: \`0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59\`\n   - Implements the ccipReceive function to handle incoming messages and store/display the received data.\n\n3. **Data**\n   - The data to be sent is: **\"${dataNode.content || "Hello World!"}\"**.\n\n**Instructions:**\n- Write the full Solidity code for both contracts.\n- Include comments explaining each part.\n- Make sure the contracts are compatible with Chainlink CCIP and the specified networks.\n- Use the addresses provided above for router and LINK token.\n- The sender contract should have a function to send the message, and the receiver should store/display the received message.\n\n**Output:**\n- Sender.sol (for Avalanche Fuji)\n- Receiver.sol (for Ethereum Sepolia)`
+  }
+
+  // Handler for generating CCIP contracts
+  const handleGenerateCCIP = async () => {
+    if (!ccipPattern) return
+    setCCIPLoading(true)
+    setCCIPError(null)
+    setShowCCIPDialog(true)
+    const prompt = generateCCIPPrompt(ccipPattern.sender, ccipPattern.dataNode, ccipPattern.receiver)
+    try {
+      const response = await fetch("/api/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      })
+      const data = await response.json()
+      setCCIPCode(data.artifact || "No code returned.")
+    } catch (err) {
+      setCCIPError("Failed to fetch generated code.")
+      setCCIPCode("")
+    } finally {
+      setCCIPLoading(false)
+    }
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
@@ -588,6 +647,11 @@ export default function DiagramApp() {
             <Button onClick={clearCanvas} variant="outline">
               Clear Canvas
             </Button>
+            {ccipPattern && (
+              <Button onClick={handleGenerateCCIP} variant="secondary">
+                Generate CCIP Contracts
+              </Button>
+            )}
           </div>
         </div>
 
@@ -700,6 +764,26 @@ export default function DiagramApp() {
             </div>
           </div>
         )}
+        {/* CCIP Generated Code Dialog */}
+        <Dialog open={showCCIPDialog} onOpenChange={setShowCCIPDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Generated CCIP Contracts</DialogTitle>
+              <DialogDescription>
+                Solidity code for sender and receiver contracts using Chainlink CCIP.
+              </DialogDescription>
+            </DialogHeader>
+            {ccipLoading ? (
+              <div className="text-center py-8 text-blue-500">Generating code...</div>
+            ) : ccipError ? (
+              <div className="text-center py-8 text-red-500">{ccipError}</div>
+            ) : (
+              <pre className="bg-gray-100 rounded p-4 overflow-x-auto text-xs max-h-96 whitespace-pre-wrap">
+                {ccipCode}
+              </pre>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
