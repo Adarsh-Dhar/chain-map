@@ -343,13 +343,16 @@ export default function DiagramApp() {
   }
 
   const saveDataChanges = () => {
-    if (!editingData) return
-    setComponents((prev) =>
-      prev.map((comp) =>
-        comp.id === editingData.id ? { ...comp, content: dataContent } : comp,
-      ),
-    )
-    setEditingData(null)
+    if (!editingData) return;
+    console.log('Saving data node:', editingData.id, 'with content:', dataContent);
+    setComponents((prev) => {
+      const updated = prev.map((comp) =>
+        comp.id === editingData.id ? { ...comp, content: dataContent } : comp
+      );
+      console.log('Updated components after data save:', updated);
+      return updated;
+    });
+    setEditingData(null);
   }
 
   const renderComponent = (component: Component) => {
@@ -493,59 +496,67 @@ export default function DiagramApp() {
     }
   }
 
-  // Detect contract -> data -> contract pattern
+  // Find CCIP pattern: sender is contract where arrow starts, receiver is where arrow ends, all other contracts are extra
   const findCCIPPattern = () => {
-    // Find all data nodes
-    const dataNodes = components.filter((c) => c.type === "data")
-    for (const dataNode of dataNodes) {
-      // Find incoming connection (from contract)
-      const incoming = connections.find(
-        (conn) => conn.toId === dataNode.id && components.find((c) => c.id === conn.fromId)?.type === "contract"
-      )
-      // Find outgoing connection (to contract)
-      const outgoing = connections.find(
-        (conn) => conn.fromId === dataNode.id && components.find((c) => c.id === conn.toId)?.type === "contract"
-      )
-      if (incoming && outgoing) {
-        const sender = components.find((c) => c.id === incoming.fromId)
-        const receiver = components.find((c) => c.id === outgoing.toId)
-        if (sender && receiver) {
-          return { sender, dataNode, receiver }
-        }
-      }
-    }
-    return null
-  }
+    // Find all arrows (connections from contract to contract or data)
+    const arrowConnections = connections.filter(conn => {
+      const from = components.find(c => c.id === conn.fromId);
+      const to = components.find(c => c.id === conn.toId);
+      return from && to && from.type === "contract" && (to.type === "contract" || to.type === "data");
+    });
+    if (arrowConnections.length === 0) return null;
+    // Assume first arrow is the main CCIP flow
+    const mainArrow = arrowConnections[0];
+    const sender = components.find(c => c.id === mainArrow.fromId && c.type === "contract");
+    const receiver = components.find(c => c.id === mainArrow.toId && c.type === "contract");
+    // Find data node (if any) between sender and receiver
+    let dataNode = components.find(c => c.type === "data" && connections.some(conn => conn.fromId === sender?.id && conn.toId === c.id) && connections.some(conn => conn.fromId === c.id && conn.toId === receiver?.id));
+    // If no data node, just use a default
+    if (!dataNode) dataNode = { id: "data", type: "data", x: 0, y: 0, content: "hello world" };
+    // All other contracts are extra
+    const extraContracts = components.filter(c => c.type === "contract" && c.id !== sender?.id && c.id !== receiver?.id);
+    return { sender, dataNode, receiver, extraContracts };
+  };
 
-  const ccipPattern = findCCIPPattern()
+  const ccipPattern = findCCIPPattern();
 
   // Generate prompt for LLM
-  const generateCCIPPrompt = (sender: Component, dataNode: Component, receiver: Component) => {
-    return `You are to generate two smart contracts for a cross-chain message passing scenario using Chainlink CCIP.\n\n**Scenario:**\n- There is a sender contract on the source chain (e.g., Avalanche Fuji).\n- There is a receiver contract on the destination chain (e.g., Ethereum Sepolia).\n- The sender contract sends a message (the data node content) to the receiver contract using Chainlink CCIP.\n\n**Requirements:**\n1. **Sender Contract**\n   - Deployable on Avalanche Fuji.\n   - Takes as constructor arguments:\n     - The CCIP router address for Avalanche Fuji: \`0xF694E193200268f9a4868e4Aa017A0118C9a8177\`\n     - The LINK token address for Avalanche Fuji: \`0x0b9d5D9136855f6FEc3c0993feE6E9CE8a297846\`\n   - Has a function to send a message to a receiver contract on another chain, using the CCIP router.\n   - The message to send is: **\"${dataNode.content || "Hello World!"}\"**.\n   - The destination chain selector is: \`16015286601757825753\` (for Ethereum Sepolia).\n   - The receiver contract address is: **\"<RECEIVER_CONTRACT_ADDRESS>\"** (to be filled after deployment).\n\n2. **Receiver Contract**\n   - Deployable on Ethereum Sepolia.\n   - Takes as constructor argument:\n     - The CCIP router address for Sepolia: \`0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59\`\n   - Implements the ccipReceive function to handle incoming messages and store/display the received data.\n\n3. **Data**\n   - The data to be sent is: **\"${dataNode.content || "Hello World!"}\"**.\n\n**Instructions:**\n- Write the full Solidity code for both contracts.\n- Include comments explaining each part.\n- Make sure the contracts are compatible with Chainlink CCIP and the specified networks.\n- Use the addresses provided above for router and LINK token.\n- The sender contract should have a function to send the message, and the receiver should store/display the received message.\n\n**Output:**\n- Sender.sol (for Avalanche Fuji)\n- Receiver.sol (for Ethereum Sepolia)`
-  }
+  const generateCCIPPrompt = (
+    sender: Component | undefined,
+    dataNode: Component | undefined,
+    receiver: Component | undefined,
+    extraContracts: Component[]
+  ) => {
+    const message = dataNode?.content?.trim() ? dataNode.content : "hello world";
+    return `You are to generate smart contracts for a cross-chain message passing scenario using Chainlink CCIP.\n\n**Scenario:**\n- The sender contract is: ${sender?.name || "Sender"} (deployed on ${sender?.chain || "source chain"}).\n- The receiver contract is: ${receiver?.name || "Receiver"} (deployed on ${receiver?.chain || "destination chain"}).\n- The sender contract sends a message to the receiver contract using Chainlink CCIP.\n- The data to be sent is: \"${message}\".\n- The sender contract must send the following message: \"${message}\" (do not use any other value).\n${extraContracts && extraContracts.length > 0 ? `- There are extra contracts in the flow. Their contents should be included as-is, but only the sender and receiver should have CCIP logic.\n${extraContracts.map((c: Component, i: number) => `  - Extra contract ${i+1}: ${c.name || "Unnamed"} (deployed on ${c.chain || "unknown chain"}), content: ${c.content || "(empty)"}`).join("\n")}` : ""}
+\n**Instructions:**\n- Write the full Solidity code for the sender and receiver contracts, implementing the CCIP send/receive logic.\n- The sender contract must send the exact message above.\n- Include the extra contracts as specified, but do not add CCIP logic to them.\n- The sender contract should have a function to send the message, and the receiver should store/display the received message.\n- Use the provided chain and contract details.\n- Output only the Solidity code, wrapped in <boltArtifact> tags.`;
+  };
 
   // Handler for generating CCIP contracts
   const handleGenerateCCIP = async () => {
-    if (!ccipPattern) return
-    setCCIPLoading(true)
-    setCCIPError(null)
-    setShowCCIPDialog(true)
-    const prompt = generateCCIPPrompt(ccipPattern.sender, ccipPattern.dataNode, ccipPattern.receiver)
+    if (!ccipPattern) return;
+    setCCIPLoading(true);
+    setCCIPError(null);
+    setShowCCIPDialog(true);
+    // Log the data node content and the prompt
+    console.log("Data node content:", ccipPattern.dataNode?.content);
+    const prompt = generateCCIPPrompt(ccipPattern.sender, ccipPattern.dataNode, ccipPattern.receiver, ccipPattern.extraContracts);
+    console.log("Prompt sent to LLM:\n", prompt);
     try {
       const response = await fetch("/api/code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
-      })
-      const data = await response.json()
-      setCCIPCode(data.artifact || "No code returned.")
+      });
+      const data = await response.json();
+      setCCIPCode(data.artifact || "No code returned.");
     } catch (err) {
-      setCCIPError("Failed to fetch generated code.")
-      setCCIPCode("")
+      setCCIPError("Failed to fetch generated code.");
+      setCCIPCode("");
     } finally {
-      setCCIPLoading(false)
+      setCCIPLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
