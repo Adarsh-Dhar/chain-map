@@ -1,5 +1,7 @@
 import { exec } from "child_process";
 import path from "path";
+import { writeFileSync, mkdtempSync } from 'fs';
+import os from 'os';
 
 export interface CodeServerInstance {
   url: string;
@@ -7,6 +9,7 @@ export interface CodeServerInstance {
   containerId: string;
   port: number;
   workspaceId: string;
+  tempDir?: string;
 }
 
 const MAX_CONTAINERS = 5;
@@ -70,13 +73,20 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
   const port = getRandomPort();
   const password = generatePassword();
   const containerName = `code-server-${workspaceId}-${Date.now()}`;
-  const projectRoot = process.cwd();
+  
+  // Create a temporary directory
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), 'code-server-'));
+  const helloFile = path.join(tempDir, 'hello.txt');
+  
+  // Create hello.txt with content
+  writeFileSync(helloFile, 'Hello World!');
 
   console.log("Starting code-server with config:", {
     port,
     containerName,
     workspaceId,
-    projectRoot
+    tempDir,
+    helloFile
   });
 
   // Check if Docker is available
@@ -101,8 +111,8 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
     `--name ${containerName}`,
     `-e PASSWORD=${password}`,
     `-p ${port}:8080`,
-    `-v ${projectRoot}:/home/coder/project`,
-    `-w /home/coder/project`,
+    `-v ${helloFile}:/home/coder/hello.txt`,
+    `-w /home/coder`,
     `-e WORKSPACE_ID=${workspaceId}`,
     "codercom/code-server:latest",
     "--auth password",
@@ -129,7 +139,7 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
         port
       });
       const url = `http://localhost:${port}`;
-      resolve({ url, password, containerId, port, workspaceId });
+      resolve({ url, password, containerId, port, workspaceId, tempDir });
     });
   });
 }
@@ -147,6 +157,19 @@ export async function stopCodeServer(containerId: string): Promise<void> {
         reject(new Error(`Failed to stop container: ${stderr || err.message}`));
       } else {
         console.log("Container stopped successfully:", containerId);
+        resolve();
+      }
+    });
+  });
+}
+
+export async function cleanupTempFiles(tempDir: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    exec(`rm -rf ${tempDir}`, (err) => {
+      if (err) {
+        console.error("Failed to cleanup temp directory:", err);
+        reject(err);
+      } else {
         resolve();
       }
     });
