@@ -33,6 +33,11 @@ interface DataFeed {
   address: string
 }
 
+interface CodeServerInfo {
+  url: string;
+  password: string;
+}
+
 const dataFeeds: DataFeed[] = [
   { name: "AUD / USD", address: "0xB0C712f98daE15264c8E26132BCC91C40aD4d5F9" },
   { name: "BTC / ETH", address: "0x5fb1616F78dA7aFC9FF79e0371741a747D2a7F22" },
@@ -75,10 +80,7 @@ export default function DiagramApp() {
   const [showPasswordInput, setShowPasswordInput] = useState(false)
   const [password, setPassword] = useState("")
   const [isCreatingCodeServer, setIsCreatingCodeServer] = useState(false)
-  const [codeServerInfo, setCodeServerInfo] = useState<{ 
-    url: string; 
-    generatedFile?: string;
-  } | null>(null)
+  const [codeServerInfo, setCodeServerInfo] = useState<CodeServerInfo | null>(null)
 
   const copyToClipboard = async (address: string) => {
     try {
@@ -862,7 +864,7 @@ export default function DiagramApp() {
                 </pre>
                 {codeServerInfo ? (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                    <h3 className="text-sm font-medium text-blue-900">VS Code Server Access Details</h3>
+                    <h3 className="text-sm font-medium text-blue-900">VS Code Workspace</h3>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-blue-700">URL:</span>
@@ -879,20 +881,11 @@ export default function DiagramApp() {
                           </Button>
                         </div>
                       </div>
-                      {codeServerInfo.generatedFile && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-blue-700">Contract File:</span>
-                          <code className="bg-blue-100 px-2 py-1 rounded text-blue-900">
-                            {codeServerInfo.generatedFile}
-                          </code>
-                        </div>
-                      )}
-                      <div className="mt-4 text-sm text-blue-700 space-y-1">
-                        <p>A dedicated workspace has been created with:</p>
-                        <ul className="list-disc list-inside pl-2 space-y-1">
-                          <li>Generated CCIP contract file</li>
-                          <li>README with usage instructions</li>
-                        </ul>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-blue-700">Password:</span>
+                        <code className="bg-blue-100 px-2 py-1 rounded text-blue-900">
+                          {codeServerInfo.password}
+                        </code>
                       </div>
                     </div>
                   </div>
@@ -911,28 +904,31 @@ export default function DiagramApp() {
                           });
                           
                           if (!response.ok) {
-                            throw new Error("Failed to create VS Code server");
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || "Failed to create workspace");
                           }
                           
                           const data = await response.json();
                           
-                          if (data.success && data.url) {
+                          if (data.url && data.password) {
                             setCodeServerInfo({
                               url: data.url,
-                              generatedFile: data.generatedFile,
+                              password: data.password
                             });
                             
                             toast({
                               title: "Success",
-                              description: "VS Code workspace created with generated contracts",
+                              description: "Workspace created successfully",
                             });
                           } else {
                             throw new Error("Invalid server response");
                           }
-                        } catch (error) {
+                        } catch (error: unknown) {
+                          console.error("Workspace creation error:", error);
+                          const errorMessage = error instanceof Error ? error.message : "Failed to create workspace";
                           toast({
                             title: "Error",
-                            description: "Failed to create VS Code workspace",
+                            description: errorMessage,
                             variant: "destructive",
                           });
                         } finally {
@@ -942,7 +938,7 @@ export default function DiagramApp() {
                       disabled={isCreatingCodeServer}
                       variant="secondary"
                     >
-                      {isCreatingCodeServer ? "Creating Workspace..." : "Open in VS Code"}
+                      {isCreatingCodeServer ? "Creating Workspace..." : "Create Workspace"}
                     </Button>
                   </div>
                 )}
