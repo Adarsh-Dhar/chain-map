@@ -1,12 +1,14 @@
-# Receiver
-Foundry project for Chainlink CCIP message receiver.
+# Receiver CCIP Project
 
-## Setup
+1. Install dependencies:
 ```bash
-forge install
+forge install smartcontractkit/chainlink --no-commit
 ```
-
-## Run Tests
+2. Build:
+```bash
+forge build
+```
+3. Test:
 ```bash
 forge test
 ```

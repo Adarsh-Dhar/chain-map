@@ -162,17 +162,38 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
       }
 
       // Immediately run Foundry install and setup commands in the background
-      runCommandInContainer(containerId, 'curl -L https://foundry.paradigm.xyz | bash')
+      const setupCommands = [
+        'curl -L https://foundry.paradigm.xyz | bash',
+        'export PATH="$PATH:/home/coder/.foundry/bin" && foundryup',
+        
+        // Create and setup Receiver project
+        'mkdir Receiver',
+        'cd Receiver',
+        'forge init . --no-git',
+        'mv src/Counter.sol src/Receiver.sol',
+        'mv test/Counter.t.sol test/Receiver.t.sol',
+        'mv script/Counter.s.sol script/Receiver.s.sol',
+        "sed -i 's/Counter/Receiver/g' src/Receiver.sol",
+        "sed -i 's/Counter/Receiver/g' test/Receiver.t.sol",
+        "sed -i 's/Counter/Receiver/g' script/Receiver.s.sol",
+        'cd ..',
+
+        // Create and setup Sender project
+        'mkdir Sender',
+        'cd Sender',
+        'forge init . --no-git',
+        'mv src/Counter.sol src/Sender.sol',
+        'mv test/Counter.t.sol test/Sender.t.sol',
+        'mv script/Counter.s.sol script/Sender.s.sol',
+        "sed -i 's/Counter/Sender/g' src/Sender.sol",
+        "sed -i 's/Counter/Sender/g' test/Sender.t.sol",
+        "sed -i 's/Counter/Sender/g' script/Sender.s.sol",
+        'cd ..'
+      ];
+
+      runCommandInContainer(containerId, setupCommands.join(' && '))
         .then(output => {
-          console.log('Foundry install output:', output);
-          return runCommandInContainer(containerId, 'export PATH="$PATH:/home/coder/.foundry/bin" && foundryup');
-        })
-        .then(output => {
-          console.log('foundryup output:', output);
-          return runCommandInContainer(containerId, 'export PATH="$PATH:/home/coder/.foundry/bin" && forge init .');
-        })
-        .then(output => {
-          console.log('forge init output:', output);
+          console.log('Foundry setup output:', output);
         })
         .catch(error => console.error('Foundry setup error:', error));
 
