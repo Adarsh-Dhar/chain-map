@@ -1,11 +1,7 @@
-# Receiver CCIP Project
+# Receiver Contract
+## Setup
+1. `forge install`
+2. Set `CCIP_ROUTER` in .env
 
-Install dependencies:
-```bash
-forge install chainlink/chainlink --no-commit
-```
-
-Test:
-```bash
-forge test
-```
+## Test
+`forge test`

@@ -6,23 +6,24 @@ import "../src/Receiver.sol";
 
 contract ReceiverTest is Test {
     Receiver receiver;
-    address mockRouter = address(0x123);
+    address router = makeAddr("router");
 
     function setUp() public {
-        receiver = new Receiver(mockRouter);
+        receiver = new Receiver(router);
     }
 
-    function testReceiveMessage() public {
+    function testMessageReceive() public {
         Client.Any2EVMMessage memory message = Client.Any2EVMMessage({
-            messageId: bytes32("dummy"),
+            messageId: bytes32(0),
             sourceChainSelector: 1,
-            sender: abi.encode(address(0x456)),
+            sender: abi.encode(makeAddr("sender")),
             data: abi.encode("hello world"),
             destTokenAmounts: new Client.EVMTokenAmount[](0)
         });
 
-        vm.prank(mockRouter);
+        vm.prank(router);
         receiver.ccipReceive(message);
+        
         assertEq(receiver.lastMessage(), "hello world");
     }
 }

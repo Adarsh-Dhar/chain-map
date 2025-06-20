@@ -1,5 +1,8 @@
 import { PrismaClient } from '@/lib/generated/prisma';
 import { FileType } from '@/lib/generated/prisma';
+import fs from 'fs/promises';
+import path from 'path';
+import { exec } from 'child_process';
 
 const prisma = new PrismaClient();
 
@@ -15,19 +18,33 @@ export async function createWorkspace(name: string, description?: string) {
 export async function createFile(
   workspaceId: string,
   name: string,
-  path: string,
+  filePath: string,
   content: string,
   type: FileType = 'file'
 ) {
-  return prisma.fileNode.create({
+  // Save to database
+  const fileRecord = await prisma.fileNode.create({
     data: {
       name,
-      path,
+      path: filePath,
       type,
       content,
       workspaceId,
     },
   });
+
+  // Save to disk
+  await saveFileToDisk(workspaceId, filePath, content);
+
+  return fileRecord;
+}
+
+export async function saveFileToDisk(workspaceId: string, filePath: string, content: string) {
+  // Use the same workspace dir pattern as codeServerManager
+  const baseDir = path.join('/tmp', `code-server-${workspaceId}`);
+  const fullPath = path.join(baseDir, filePath);
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.writeFile(fullPath, content, 'utf8');
 }
 
 export async function getWorkspaceWithFiles(workspaceId: string) {
@@ -96,4 +113,17 @@ export async function createCCIPWorkspace(llmResponse: string) {
   return {
     workspace
   };
+}
+
+export function runCommand(command: string, workspaceId: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const cwd = path.join('/tmp', `code-server-${workspaceId}`);
+    exec(command, { cwd }, (error, stdout, stderr) => {
+      if (error) {
+        reject(stderr || error.message);
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
 } 

@@ -1,11 +1,7 @@
-# Sender CCIP Project
+# Sender Contract
+## Setup
+1. `forge install`
+2. Set `CCIP_ROUTER` and `LINK_TOKEN` in .env
 
-Install dependencies:
-```bash
-forge install chainlink/chainlink --no-commit
-```
-
-Test:
-```bash
-forge test
-```
+## Test
+`forge test`

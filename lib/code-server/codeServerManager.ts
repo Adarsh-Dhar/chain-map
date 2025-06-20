@@ -150,6 +150,12 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
         port
       });
       const url = `http://localhost:${port}`;
+
+      // Immediately run Foundry install command in the background
+      runCommandInContainer(containerId, 'curl -L https://foundry.paradigm.xyz | bash')
+        .then(output => console.log('Foundry install output:', output))
+        .catch(error => console.error('Foundry install error:', error));
+
       resolve({ url, password, containerId, port, workspaceId, tempDir: projectDir });
     });
   });
@@ -182,6 +188,20 @@ export async function cleanupTempFiles(tempDir: string): Promise<void> {
         reject(err);
       } else {
         resolve();
+      }
+    });
+  });
+}
+
+export function runCommandInContainer(containerId: string, command: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // Run the command in the container using bash -c for chaining
+    const dockerCmd = `docker exec ${containerId} bash -c "${command}"`;
+    exec(dockerCmd, (error, stdout, stderr) => {
+      if (error) {
+        reject(stderr || error.message);
+      } else {
+        resolve(stdout);
       }
     });
   });
