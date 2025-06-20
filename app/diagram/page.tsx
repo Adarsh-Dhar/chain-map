@@ -533,12 +533,48 @@ export default function DiagramApp() {
   const generateCCIPPrompt = (
     sender: Component | undefined,
     dataNode: Component | undefined,
-    receiver: Component | undefined,
-    extraContracts: Component[]
+    receiver: Component | undefined
   ) => {
     const message = dataNode?.content?.trim() ? dataNode.content : "hello world";
-    return `You are to generate smart contracts for a cross-chain message passing scenario using Chainlink CCIP.\n\n**Scenario:**\n- The sender contract is: ${sender?.name || "Sender"} (deployed on ${sender?.chain || "source chain"}).\n- The receiver contract is: ${receiver?.name || "Receiver"} (deployed on ${receiver?.chain || "destination chain"}).\n- The sender contract sends a message to the receiver contract using Chainlink CCIP.\n- The data to be sent is: \"${message}\".\n- The sender contract must send the following message: \"${message}\" (do not use any other value).\n${extraContracts && extraContracts.length > 0 ? `- There are extra contracts in the flow. Their contents should be included as-is, but only the sender and receiver should have CCIP logic.\n${extraContracts.map((c: Component, i: number) => `  - Extra contract ${i+1}: ${c.name || "Unnamed"} (deployed on ${c.chain || "unknown chain"}), content: ${c.content || "(empty)"}`).join("\n")}` : ""}
-\n**Instructions:**\n- Write the full Solidity code for the sender and receiver contracts, implementing the CCIP send/receive logic.\n- The sender contract must send the exact message above.\n- Include the extra contracts as specified, but do not add CCIP logic to them.\n- The sender contract should have a function to send the message, and the receiver should store/display the received message.\n- Use the provided chain and contract details.\n- Output only the Solidity code, wrapped in <boltArtifact> tags.`;
+    const senderName = sender?.name || "Sender";
+    const receiverName = receiver?.name || "Receiver";
+
+    return `You are an expert Solidity and Foundry developer.
+Generate two complete and separate Foundry projects for a Chainlink CCIP interaction.
+
+**Project 1: Sender**
+- Contract Name: ${senderName}
+- Chain: ${sender?.chain || "source chain"}
+- Purpose: Sends a message via CCIP.
+- Message to send: "${message}"
+
+**Project 2: Receiver**
+- Contract Name: ${receiverName}
+- Chain: ${receiver?.chain || "destination chain"}
+- Purpose: Receives a message from the Sender via CCIP.
+
+For EACH project, you must generate:
+1. A Foundry project folder named after the contract (e.g., '${senderName}/' and '${receiverName}/').
+2. Inside each folder, provide:
+   - \`foundry.toml\`
+   - \`README.md\`
+   - \`src/${senderName}.sol\` or \`src/${receiverName}.sol\` containing the respective contract. The contract name inside the file MUST match the filename.
+   - \`test/${senderName}.t.sol\` or \`test/${senderName}.t.sol\` with a basic test for the contract.
+
+Use Solidity version ^0.8.19.
+
+**IMPORTANT INSTRUCTIONS:**
+- DO NOT use markdown or triple backticks anywhere in your response.
+- DO NOT add any explanations or text outside the code files.
+- The entire output must be a single <boltArtifact> block.
+- Each file MUST be in its own <boltAction type="file" filePath="..."></boltAction> block, with the correct file path including the project folder.
+
+Example for the Sender project (and similarly for the Receiver):
+<boltAction type="file" filePath="${senderName}/foundry.toml">[foundry.toml contents]</boltAction>
+<boltAction type="file" filePath="${senderName}/README.md">[README contents]</boltAction>
+<boltAction type="file" filePath="${senderName}/src/${senderName}.sol">[Solidity contract]</boltAction>
+<boltAction type="file" filePath="${senderName}/test/${senderName}.t.sol">[Test file]</boltAction>
+`;
   };
 
   // Handler for generating CCIP contracts
@@ -549,7 +585,7 @@ export default function DiagramApp() {
     setShowCCIPDialog(true);
     // Log the data node content and the prompt
     console.log("Data node content:", ccipPattern.dataNode?.content);
-    const prompt = generateCCIPPrompt(ccipPattern.sender, ccipPattern.dataNode, ccipPattern.receiver, ccipPattern.extraContracts);
+    const prompt = generateCCIPPrompt(ccipPattern.sender, ccipPattern.dataNode, ccipPattern.receiver);
     console.log("Prompt sent to LLM:\n", prompt);
 
     // Build contractDataFeeds object
@@ -592,7 +628,6 @@ export default function DiagramApp() {
               prompts: [data.artifact],
               config: {
                 baseDir: "generated/ccip",
-                defaultFileName: "CCIPContracts.sol"
               }
             }),
           });
@@ -603,7 +638,7 @@ export default function DiagramApp() {
           
           toast({
             title: "Success",
-            description: "CCIP contracts have been generated and saved to the generated/ccip directory",
+            description: "CCIP Foundry projects have been generated in the generated/ccip directory",
           });
         } catch (writeErr) {
           console.error("Failed to write code files:", writeErr);

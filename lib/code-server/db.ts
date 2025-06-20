@@ -50,51 +50,50 @@ export async function createCCIPWorkspace(llmResponse: string) {
     'CCIP Contracts Workspace'
   );
 
-  // Extract content between <boltArtifact> tags if present
-  const artifactMatch = llmResponse.match(/<boltArtifact>([\s\S]*?)<\/boltArtifact>/);
-  const contractContent = artifactMatch ? artifactMatch[1].trim() : llmResponse;
+  // Regular expression to extract file path and content from <boltAction> tags
+  const fileRegex = /<boltAction type="file" filePath="([^"]+)">([\s\S]*?)<\/boltAction>/g;
+  let match;
+  let firstContractContent = '';
+  let firstContractName = 'contract.sol';
 
-  // Create the contract file
-  const contractFileName = `ccip-contracts-${timestamp}.sol`;
-  await createFile(
-    workspace.id,
-    contractFileName,
-    contractFileName,
-    contractContent,
-    'file'
-  );
+  while ((match = fileRegex.exec(llmResponse)) !== null) {
+    const filePath = match[1];
+    const fileContent = match[2].trim();
+    const fileName = filePath.split('/').pop() || 'file';
 
-  // Create README.md
-  const readmeContent = `# CCIP Contracts Workspace
+    await createFile(
+      workspace.id,
+      fileName,
+      filePath, // Use the full path for storage
+      fileContent,
+      'file'
+    );
+    
+    // Save the first contract's content and name to return
+    if (filePath.endsWith('.sol') && !filePath.includes('/test/') && !firstContractContent) {
+      firstContractContent = fileContent;
+      firstContractName = fileName;
+    }
+  }
 
-This workspace contains automatically generated CCIP (Cross-Chain Interoperability Protocol) smart contracts.
-
-## Files
-- \`${contractFileName}\`: Generated CCIP contracts
-  - Contains sender and receiver contracts for cross-chain communication
-  - Generated on: ${new Date().toLocaleString()}
-
-## Usage
-1. Review the generated contracts in \`${contractFileName}\`
-2. Make any necessary modifications
-3. Deploy using your preferred method (Hardhat, Foundry, Remix, etc.)
-
-## Important Notes
-- Always review and test the generated code before deployment
-- Ensure you have the correct CCIP router addresses for your target chains
-- Test with small amounts first on testnet before mainnet deployment
-`;
-
-  await createFile(
-    workspace.id,
-    'README.md',
-    'README.md',
-    readmeContent,
-    'file'
-  );
-
+  // If no files were created, handle the raw response
+  if (!fileRegex.test(llmResponse)) {
+    // This part handles cases where the LLM might not return the expected format.
+    const artifactMatch = llmResponse.match(/<boltArtifact>([\s\S]*?)<\/boltArtifact>/);
+    const contractContent = artifactMatch ? artifactMatch[1].trim() : llmResponse;
+    const contractFileName = `ccip-contracts-${timestamp}.sol`;
+    await createFile(
+      workspace.id,
+      contractFileName,
+      contractFileName,
+      contractContent,
+      'file'
+    );
+    firstContractContent = contractContent;
+    firstContractName = contractFileName;
+  }
+  
   return {
-    workspace,
-    contractFileName,
+    workspace
   };
 } 

@@ -1,7 +1,8 @@
 import { exec } from "child_process";
 import path from "path";
-import { writeFileSync, mkdtempSync } from 'fs';
+import { writeFileSync, mkdtempSync, mkdirSync, existsSync } from 'fs';
 import os from 'os';
+import { getWorkspaceWithFiles } from './db';
 
 export interface CodeServerInstance {
   url: string;
@@ -74,20 +75,30 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
   const password = generatePassword();
   const containerName = `code-server-${workspaceId}-${Date.now()}`;
   
-  // Create a temporary directory
-  const tempDir = mkdtempSync(path.join(os.tmpdir(), 'code-server-'));
-  const helloFile = path.join(tempDir, 'hello.txt');
-  
-  // Create hello.txt with content
-  writeFileSync(helloFile, 'Hello World!');
+  // Create a temporary directory for the entire project
+  const projectDir = mkdtempSync(path.join(os.tmpdir(), `code-server-${workspaceId}-`));
 
-  console.log("Starting code-server with config:", {
-    port,
-    containerName,
-    workspaceId,
-    tempDir,
-    helloFile
-  });
+  // Fetch the workspace and its files from the database
+  const workspace = await getWorkspaceWithFiles(workspaceId);
+  if (!workspace || !workspace.files) {
+    throw new Error(`Workspace with ID ${workspaceId} not found or has no files.`);
+  }
+
+  // Recreate the directory structure and write files
+  for (const file of workspace.files) {
+    const fullPath = path.join(projectDir, file.path);
+    const dirName = path.dirname(fullPath);
+
+    // Create directory if it doesn't exist
+    if (!existsSync(dirName)) {
+      mkdirSync(dirName, { recursive: true });
+    }
+
+    // Write the file
+    writeFileSync(fullPath, file.content || '');
+  }
+  
+  console.log("Starting code-server for project in:", projectDir);
 
   // Check if Docker is available
   try {
@@ -111,8 +122,8 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
     `--name ${containerName}`,
     `-e PASSWORD=${password}`,
     `-p ${port}:8080`,
-    `-v ${helloFile}:/home/coder/hello.txt`,
-    `-w /home/coder`,
+    `-v ${projectDir}:/home/coder/project`,
+    `-w /home/coder/project`,
     `-e WORKSPACE_ID=${workspaceId}`,
     "codercom/code-server:latest",
     "--auth password",
@@ -139,7 +150,7 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
         port
       });
       const url = `http://localhost:${port}`;
-      resolve({ url, password, containerId, port, workspaceId, tempDir });
+      resolve({ url, password, containerId, port, workspaceId, tempDir: projectDir });
     });
   });
 }
