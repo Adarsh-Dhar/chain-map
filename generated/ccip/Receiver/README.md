@@ -1,7 +1,12 @@
-# Receiver Contract
-## Setup
-1. `forge install`
-2. Set `CCIP_ROUTER` in .env
+# Receiver
+Foundry project for Chainlink CCIP message receiver.
 
-## Test
-`forge test`
+## Setup
+```bash
+forge install
+```
+
+## Run Tests
+```bash
+forge test
+```

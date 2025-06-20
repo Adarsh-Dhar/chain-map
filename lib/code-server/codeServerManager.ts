@@ -3,6 +3,7 @@ import path from "path";
 import { writeFileSync, mkdtempSync, mkdirSync, existsSync } from 'fs';
 import os from 'os';
 import { getWorkspaceWithFiles } from './db';
+import fs from 'fs';
 
 export interface CodeServerInstance {
   url: string;
@@ -151,10 +152,29 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
       });
       const url = `http://localhost:${port}`;
 
-      // Immediately run Foundry install command in the background
+      // Clear the workspace directory before starting the container
+      if (existsSync(projectDir)) {
+        const files = fs.readdirSync(projectDir);
+        for (const file of files) {
+          const filePath = path.join(projectDir, file);
+          fs.rmSync(filePath, { recursive: true, force: true });
+        }
+      }
+
+      // Immediately run Foundry install and setup commands in the background
       runCommandInContainer(containerId, 'curl -L https://foundry.paradigm.xyz | bash')
-        .then(output => console.log('Foundry install output:', output))
-        .catch(error => console.error('Foundry install error:', error));
+        .then(output => {
+          console.log('Foundry install output:', output);
+          return runCommandInContainer(containerId, 'export PATH="$PATH:/home/coder/.foundry/bin" && foundryup');
+        })
+        .then(output => {
+          console.log('foundryup output:', output);
+          return runCommandInContainer(containerId, 'export PATH="$PATH:/home/coder/.foundry/bin" && forge init .');
+        })
+        .then(output => {
+          console.log('forge init output:', output);
+        })
+        .catch(error => console.error('Foundry setup error:', error));
 
       resolve({ url, password, containerId, port, workspaceId, tempDir: projectDir });
     });

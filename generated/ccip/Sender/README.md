@@ -1,7 +1,12 @@
-# Sender Contract
-## Setup
-1. `forge install`
-2. Set `CCIP_ROUTER` and `LINK_TOKEN` in .env
+# Sender
+Foundry project for Chainlink CCIP message sender.
 
-## Test
-`forge test`
+## Setup
+```bash
+forge install
+```
+
+## Run Tests
+```bash
+forge test
+```

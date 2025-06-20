@@ -4,27 +4,33 @@ pragma solidity ^0.8.19;
 import "forge-std/Test.sol";
 import "../src/Sender.sol";
 
-contract SenderTest is Test {
-    Sender sender;
-    address router = makeAddr("router");
-    address linkToken = makeAddr("linkToken");
-
-    function setUp() public {
-        sender = new Sender(router, linkToken);
+contract MockRouter {
+    function getFee(uint64, Client.EVM2AnyMessage memory) external pure returns (uint256) {
+        return 0.1 ether;
     }
 
-    function testSendMessage() public {
-        vm.mockCall(
-            router,
-            abi.encodeWithSelector(IRouterClient.getFee.selector),
-            abi.encode(0.1 ether)
-        );
+    function ccipSend(uint64, Client.EVM2AnyMessage calldata) external payable returns (bytes32) {
+        return keccak256("message");
+    }
+}
+
+contract SenderTest is Test {
+    Sender public sender;
+    MockRouter public router;
+
+    function setUp() public {
+        router = new MockRouter();
+        sender = new Sender(address(router));
+    }
+
+    function testSendMessage() public payable {
+        vm.deal(address(this), 1 ether);
+        bytes32 expectedId = keccak256("message");
         
-        vm.expectCall(
-            router,
-            abi.encodeWithSelector(IRouterClient.ccipSend.selector)
-        );
+        vm.expectEmit(true, true, true, true);
+        emit Sender.MessageSent(expectedId);
         
-        sender.sendMessage(1, makeAddr("receiver"));
+        bytes32 messageId = sender.sendMessage{value: 0.1 ether}(1, address(0));
+        assertEq(messageId, expectedId);
     }
 }
