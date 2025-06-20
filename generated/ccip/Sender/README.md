@@ -1,14 +1,8 @@
-# Sender CCIP Project
+# Sender Contract
+Chainlink CCIP message sender
 
-1. Install dependencies:
-```bash
-forge install smartcontractkit/chainlink --no-commit
-```
-2. Build:
-```bash
-forge build
-```
-3. Test:
-```bash
-forge test
-```
+## Commands
+- Install: `forge install`
+- Build: `forge build`
+- Test: `forge test`
+- Deploy: `forge script script/Sender.s.sol --broadcast`

@@ -545,13 +545,12 @@ Generate two complete and separate Foundry projects for a Chainlink CCIP interac
 **Project 1: Sender**
 - Contract Name: ${senderName}
 - Chain: ${sender?.chain || "source chain"}
-- Purpose: Sends a message via CCIP.
-- Message to send: "${message}"
+- Purpose: Implements a Chainlink CCIP Sender contract that sends a string message (\"${message}\") to a Receiver contract on another chain using Chainlink CCIP. The contract should use the IRouterClient interface and implement a function to send the message using CCIP.
 
 **Project 2: Receiver**
 - Contract Name: ${receiverName}
 - Chain: ${receiver?.chain || "destination chain"}
-- Purpose: Receives a message from the Sender via CCIP.
+- Purpose: Implements a Chainlink CCIP Receiver contract that receives a string message via Chainlink CCIP and stores it in a public variable. The contract should inherit from CCIPReceiver and override the _ccipReceive function to decode and store the message.
 
 For EACH project, you must generate:
 1. A Foundry project folder named after the contract (e.g., '${senderName}/' and '${receiverName}/').
@@ -559,7 +558,8 @@ For EACH project, you must generate:
    - \`foundry.toml\`
    - \`README.md\`
    - \`src/${senderName}.sol\` or \`src/${receiverName}.sol\` containing the respective contract. The contract name inside the file MUST match the filename.
-   - \`test/${senderName}.t.sol\` or \`test/${senderName}.t.sol\` with a basic test for the contract.
+   - \`test/${senderName}.t.sol\` or \`test/${receiverName}.t.sol\` with a basic test for the contract.
+   - \`script/${senderName}.s.sol\` or \`script/${receiverName}.s.sol\` with a basic script for the contract.
 
 Use Solidity version ^0.8.19.
 
@@ -574,6 +574,7 @@ Example for the Sender project (and similarly for the Receiver):
 <boltAction type="file" filePath="${senderName}/README.md">[README contents]</boltAction>
 <boltAction type="file" filePath="${senderName}/src/${senderName}.sol">[Solidity contract]</boltAction>
 <boltAction type="file" filePath="${senderName}/test/${senderName}.t.sol">[Test file]</boltAction>
+<boltAction type="file" filePath="${senderName}/script/${senderName}.s.sol">[Script file]</boltAction>
 `;
   };
 

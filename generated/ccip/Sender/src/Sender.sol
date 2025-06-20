@@ -1,29 +1,41 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
-import "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
+import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
+import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/OwnerIsCreator.sol";
+import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 
-contract Sender {
+contract Sender is OwnerIsCreator {
     IRouterClient public router;
-    
-    event MessageSent(bytes32 messageId);
+    address public linkToken;
 
-    constructor(address _router) {
+    error InvalidRouter(address router);
+
+    constructor(address _router, address _linkToken) {
+        if (_router == address(0)) revert InvalidRouter(_router);
         router = IRouterClient(_router);
+        linkToken = _linkToken;
     }
 
-    function sendMessage(uint64 destinationChainSelector) external returns (bytes32) {
+    function sendMessage(
+        uint64 destinationChainSelector,
+        address receiver
+    ) external onlyOwner returns (bytes32 messageId) {
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
-            receiver: abi.encode(msg.sender),
+            receiver: abi.encode(receiver),
             data: abi.encode("hello world"),
             tokenAmounts: new Client.EVMTokenAmount[](0),
             extraArgs: "",
-            feeToken: address(0)
+            feeToken: linkToken
         });
-        
-        bytes32 messageId = router.ccipSend(destinationChainSelector, message);
-        emit MessageSent(messageId);
-        return messageId;
+
+        uint256 fee = router.getFee(destinationChainSelector, message);
+
+        messageId = router.ccipSend{value: fee}(
+            destinationChainSelector,
+            message
+        );
     }
+
+    receive() external payable {}
 }

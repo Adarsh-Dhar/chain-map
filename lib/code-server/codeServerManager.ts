@@ -192,8 +192,19 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
       ];
 
       runCommandInContainer(containerId, setupCommands.join(' && '))
-        .then(output => {
+        .then(async output => {
           console.log('Foundry setup output:', output);
+
+          // Overwrite boilerplate files with LLM-generated content from DB
+          const workspaceWithFiles = await getWorkspaceWithFiles(workspaceId);
+          if (workspaceWithFiles && workspaceWithFiles.files) {
+            for (const file of workspaceWithFiles.files) {
+              const fullPath = path.join(projectDir, file.path);
+              await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
+              await fs.promises.writeFile(fullPath, file.content || '', 'utf8');
+            }
+            console.log('Overwrote boilerplate files with LLM-generated content.');
+          }
         })
         .catch(error => console.error('Foundry setup error:', error));
 
