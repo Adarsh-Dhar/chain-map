@@ -1,32 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {Test} from "forge-std/Test.sol";
-import {Receiver} from "../src/Receiver.sol";
-import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
+import "forge-std/Test.sol";
+import "../src/Receiver.sol";
 
 contract ReceiverTest is Test {
     Receiver receiver;
+    address mockRouter = address(0x123);
 
     function setUp() public {
-        receiver = new Receiver(address(0x0));
+        receiver = new Receiver(mockRouter);
     }
 
     function test_ReceiveMessage() public {
         Client.Any2EVMMessage memory message = Client.Any2EVMMessage({
-            messageId: bytes32(0),
+            messageId: bytes32("id"),
             sourceChainSelector: 1,
-            sender: abi.encode(address(0x123)),
+            sender: abi.encode(address(0x456)),
             data: abi.encode("hello world"),
             destTokenAmounts: new Client.EVMTokenAmount[](0)
         });
 
-        (bool success,) = address(receiver).call(abi.encodeWithSignature(
-            "_ccipReceive((bytes32,uint64,bytes,address,bytes32[],uint256[],bytes))",
-            message
-        ));
+        vm.prank(mockRouter);
+        receiver.ccipReceive(message);
         
-        assertTrue(success);
         assertEq(receiver.lastMessage(), "hello world");
     }
 }

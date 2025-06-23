@@ -1,30 +1,38 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {Test} from "forge-std/Test.sol";
-import {Sender} from "../src/Sender.sol";
-
-contract MockRouter {
-    function getFee(uint64, bytes memory) external pure returns (uint256) {
-        return 1 ether;
-    }
-
-    function ccipSend(uint64, bytes memory) external payable returns (bytes32) {
-        return keccak256("messageId");
-    }
-}
+import "forge-std/Test.sol";
+import "../src/Sender.sol";
 
 contract SenderTest is Test {
     Sender sender;
-    address router = address(new MockRouter());
-    address linkToken = address(0x0);
+    address mockRouter = address(0x123);
+    address linkToken = address(0x456);
 
     function setUp() public {
-        sender = new Sender(router, linkToken);
+        sender = new Sender(mockRouter, linkToken);
     }
 
     function test_SendMessage() public {
-        bytes32 messageId = sender.sendMessage(1, address(0x123));
-        assert(messageId != bytes32(0));
+        vm.mockCall(
+            mockRouter,
+            abi.encodeWithSelector(IRouterClient.getFee.selector),
+            abi.encode(100)
+        );
+        
+        vm.mockCall(
+            linkToken,
+            abi.encodeCall(IERC20.transferFrom, (address(this), address(sender), 100)),
+            abi.encode(true)
+        );
+
+        vm.mockCall(
+            mockRouter,
+            abi.encodeWithSelector(IRouterClient.ccipSend.selector),
+            abi.encode(bytes32("messageId"))
+        );
+
+        bytes32 messageId = sender.sendMessage(1, address(0x789));
+        assertEq(messageId, bytes32("messageId"));
     }
 }

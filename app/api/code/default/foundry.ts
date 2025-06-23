@@ -1,4 +1,4 @@
-export const basePrompt = `<boltArtifact id=\"project-import\" title=\"Project Files\"><boltAction type=\"file\" filePath=\"foundry.toml\">[default]
+export const BASE_FOUNDRY_PROMPT = `<boltArtifact id=\"project-import\" title=\"Project Files\"><boltAction type=\"file\" filePath=\"foundry.toml\">[default]
 src = 'src'
 test = 'test'
 libraries = ['lib']
@@ -14,7 +14,7 @@ libraries = ['lib']
 </boltAction><boltAction type="file" filePath="README.md"># Foundry Minimal Project\n\nThis is a minimal Foundry project with a SimpleStorage contract and test.\n\n## Usage\n\n- Install Foundry: https://book.getfoundry.sh/getting-started/installation\n- Build: \`forge build\`\n- Test: \`forge test\`\n</boltAction><boltAction type="file" filePath="src/SimpleStorage.sol">// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.0;\n\ncontract SimpleStorage {\n    uint256 private storedData;\n\n    function set(uint256 x) public {\n        storedData = x;\n    }\n\n    function get() public view returns (uint256) {\n        return storedData;\n    }\n}\n</boltAction><boltAction type="file" filePath="test/SimpleStorage.t.sol">// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.0;\n\nimport \"forge-std/Test.sol\";\nimport \"../src/SimpleStorage.sol\";\n\ncontract SimpleStorageTest is Test {\n    SimpleStorage public simpleStorage;\n\n    function setUp() public {\n        simpleStorage = new SimpleStorage();\n    }\n\n    function testSetAndGet() public {\n        simpleStorage.set(42);\n        assertEq(simpleStorage.get(), 42);\n    }\n}\n</boltAction></boltArtifact>`;
   }
   // Fallback to Counter contract
-  return basePrompt;
+  return BASE_FOUNDRY_PROMPT;
 }
 
 export function getFoundrySystemPrompt(userPrompt: string): string {

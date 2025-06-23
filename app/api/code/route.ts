@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { BASE_FOUNDRY_PROMPT, getFoundrySystemPrompt } from "./prompt";
+import { BASE_FOUNDRY_PROMPT, getFoundrySystemPrompt } from "./default/foundry";
 
 // Helper to call OpenRouter as a Claude/Anthropic stand-in
 async function callOpenRouter(messages: any[], system: string, max_tokens: number) {

@@ -109,6 +109,29 @@ export async function createCCIPWorkspace(llmResponse: string) {
     firstContractContent = contractContent;
     firstContractName = contractFileName;
   }
+
+  // Always generate Foundry Chainlink Toolkit-style scripts for Sender and Receiver
+  // SenderActions.s.sol
+  const senderScriptPath = 'Sender/script/SenderActions.s.sol';
+  const senderScriptContent = `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\nimport {Script} from \"forge-std/Script.sol\";\nimport {Sender} from \"../src/Sender.sol\";\n\ncontract SenderActions is Script {\n    function sendMessage(address senderAddress, uint64 destinationChainSelector, address receiver) external {\n        vm.startBroadcast();\n        Sender(senderAddress).sendMessage(destinationChainSelector, receiver);\n        vm.stopBroadcast();\n    }\n}\n`;
+  await createFile(
+    workspace.id,
+    'SenderActions.s.sol',
+    senderScriptPath,
+    senderScriptContent,
+    'file'
+  );
+
+  // ReceiverActions.s.sol
+  const receiverScriptPath = 'Receiver/script/ReceiverActions.s.sol';
+  const receiverScriptContent = `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\nimport {Script} from \"forge-std/Script.sol\";\nimport {Receiver} from \"../src/Receiver.sol\";\n\ncontract ReceiverActions is Script {\n    function getLastMessage(address receiverAddress) external view returns (string memory) {\n        return Receiver(receiverAddress).lastMessage();\n    }\n}\n`;
+  await createFile(
+    workspace.id,
+    'ReceiverActions.s.sol',
+    receiverScriptPath,
+    receiverScriptContent,
+    'file'
+  );
   
   return {
     workspace

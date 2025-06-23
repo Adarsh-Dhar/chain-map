@@ -122,6 +122,7 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
     "docker run -d",
     `--name ${containerName}`,
     `-e PASSWORD=${password}`,
+    `-e NVM_DIR=/home/coder/.nvm`,
     `-p ${port}:8080`,
     `-v ${projectDir}:/home/coder/project`,
     `-w /home/coder/project`,
@@ -161,39 +162,35 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
         }
       }
 
-      // Immediately run Foundry install and setup commands in the background
+      // Immediately run Hardhat install and setup commands in the background
       const setupCommands = [
-        'curl -L https://foundry.paradigm.xyz | bash',
-        'export PATH="$PATH:/home/coder/.foundry/bin" && foundryup',
-        
+        "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash",
+        "export NVM_DIR=\"$HOME/.nvm\"",
+        "[ -s \"$NVM_DIR/nvm.sh\" ] && \\. \"$NVM_DIR/nvm.sh\"",
+        "nvm install 22",
+        "node -v",
+        "npm -v",
+
         // Create and setup Receiver project
         'mkdir Receiver',
         'cd Receiver',
-        'forge init . --no-git',
-        'mv src/Counter.sol src/Receiver.sol',
-        'mv test/Counter.t.sol test/Receiver.t.sol',
-        'mv script/Counter.s.sol script/Receiver.s.sol',
-        "sed -i 's/Counter/Receiver/g' src/Receiver.sol",
-        "sed -i 's/Counter/Receiver/g' test/Receiver.t.sol",
-        "sed -i 's/Counter/Receiver/g' script/Receiver.s.sol",
+        'npm init -y',
+        'npm install --save-dev hardhat',
+        'npx hardhat init --force',
         'cd ..',
 
         // Create and setup Sender project
         'mkdir Sender',
         'cd Sender',
-        'forge init . --no-git',
-        'mv src/Counter.sol src/Sender.sol',
-        'mv test/Counter.t.sol test/Sender.t.sol',
-        'mv script/Counter.s.sol script/Sender.s.sol',
-        "sed -i 's/Counter/Sender/g' src/Sender.sol",
-        "sed -i 's/Counter/Sender/g' test/Sender.t.sol",
-        "sed -i 's/Counter/Sender/g' script/Sender.s.sol",
+        'npm init -y',
+        'npm install --save-dev hardhat',
+        'npx hardhat init --force',
         'cd ..'
       ];
 
       runCommandInContainer(containerId, setupCommands.join(' && '))
         .then(async output => {
-          console.log('Foundry setup output:', output);
+          console.log('Hardhat setup output:', output);
 
           // Overwrite boilerplate files with LLM-generated content from DB
           const workspaceWithFiles = await getWorkspaceWithFiles(workspaceId);
@@ -206,7 +203,7 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
             console.log('Overwrote boilerplate files with LLM-generated content.');
           }
         })
-        .catch(error => console.error('Foundry setup error:', error));
+        .catch(error => console.error('Hardhat setup error:', error));
 
       resolve({ url, password, containerId, port, workspaceId, tempDir: projectDir });
     });
