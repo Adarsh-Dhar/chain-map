@@ -7,7 +7,7 @@ import "../src/Receiver.sol";
 contract DeployReceiver is Script {
     function run() external {
         vm.startBroadcast();
-        new Receiver(0x123);
+        new Receiver(0x123456789);
         vm.stopBroadcast();
     }
 }

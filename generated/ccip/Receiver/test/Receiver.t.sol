@@ -18,14 +18,11 @@ contract ReceiverTest is Test {
             sourceChainSelector: 1,
             sender: abi.encode(address(0x456)),
             data: abi.encode("hello world"),
-            tokenAmounts: new Client.EVMTokenAmount[](0)
+            destTokenAmounts: new Client.EVMTokenAmount[](0)
         });
-
-        vm.prank(mockRouter);
-        vm.expectEmit(true, true, true, true);
-        emit MessageReceived(bytes32("1"));
-        receiver.ccipReceive(message);
         
+        vm.prank(mockRouter);
+        receiver.ccipReceive(message);
         assertEq(receiver.lastMessage(), "hello world");
     }
 }

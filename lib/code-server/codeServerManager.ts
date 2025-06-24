@@ -88,26 +88,13 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
   const port = getRandomPort();
   const password = generatePassword();
   const containerName = `code-server-${workspaceId}-${Date.now()}`;
-  
-  // Create a temporary directory for the entire project
-  const projectDir = mkdtempSync(path.join(os.tmpdir(), `code-server-${workspaceId}-`));
 
-  // Fetch the workspace and its files from the database
-  const workspace = await getWorkspaceWithFiles(workspaceId);
-  if (!workspace || !workspace.files) {
-    throw new Error(`Workspace with ID ${workspaceId} not found or has no files.`);
+  // Use a real, existing directory on the Mac host for Docker mount
+  const projectDir = path.join(os.tmpdir(), `code-server-${workspaceId}`);
+  if (!existsSync(projectDir)) {
+    mkdirSync(projectDir, { recursive: true });
   }
 
-  // Recreate the directory structure and write files
-  for (const file of workspace.files) {
-    const fullPath = path.join(projectDir, file.path);
-    const dirName = path.dirname(fullPath);
-    if (!existsSync(dirName)) {
-      mkdirSync(dirName, { recursive: true });
-    }
-    writeFileSync(fullPath, file.content || '');
-  }
-  
   console.log("Starting code-server for project in:", projectDir);
 
   // Check if Docker is available
@@ -167,7 +154,7 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
           "ln -sf /usr/bin/npm /usr/local/bin/npm"
         ].join(' && '));
 
-        // PROJECT SETUP
+        // PROJECT SETUP (only run commands, do not write any files)
         await runCommandInContainer(containerId, [
           'mkdir -p Receiver',
           'cd Receiver && npm init -y',
@@ -175,19 +162,9 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
           'cd ..',
           'mkdir -p Sender',
           'cd Sender && npm init -y',
-          'npm install --save-dev hardhat'
+          'npm install --save-dev hardhat',
+          'cd ..'
         ].join(' && '));
-
-        // WRITE LLM-GENERATED FILES
-        const workspaceWithFiles = await getWorkspaceWithFiles(workspaceId);
-        if (workspaceWithFiles && workspaceWithFiles.files) {
-          for (const file of workspaceWithFiles.files) {
-            const fullPath = path.join(projectDir, file.path);
-            await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
-            await fs.promises.writeFile(fullPath, file.content || '', 'utf8');
-          }
-          console.log('Overwrote boilerplate files with LLM-generated content.');
-        }
       } catch (setupError) {
         console.error('Setup failed:', setupError);
       }
