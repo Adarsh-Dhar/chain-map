@@ -2,38 +2,41 @@
 pragma solidity ^0.8.19;
 
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
+import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/OwnerIsCreator.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
-import {IERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.0/token/ERC20/IERC20.sol";
 
-contract Sender {
+contract Sender is OwnerIsCreator {
     IRouterClient public router;
-    IERC20 public linkToken;
+    address public receiver;
+    address public linkToken;
     
     event MessageSent(bytes32 messageId);
-
-    constructor(address _router, address _link) {
+    
+    constructor(address _router, address _linkToken) {
         router = IRouterClient(_router);
-        linkToken = IERC20(_link);
+        linkToken = _linkToken;
     }
-
-    function sendMessage(
-        uint64 _destinationChainSelector,
-        address _receiver,
-        string calldata _message
-    ) external returns (bytes32 messageId) {
-        Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
-            receiver: abi.encode(_receiver),
-            data: abi.encode(_message),
+    
+    function setReceiver(address _receiver) public onlyOwner {
+        receiver = _receiver;
+    }
+    
+    function sendMessage(string memory message) external payable returns (bytes32) {
+        Client.EVM2AnyMessage memory evmMessage = Client.EVM2AnyMessage({
+            receiver: abi.encode(receiver),
+            data: abi.encode(message),
             tokenAmounts: new Client.EVMTokenAmount[](0),
             extraArgs: "",
-            feeToken: address(linkToken)
+            feeToken: linkToken
         });
-
-        uint256 fee = router.getFee(_destinationChainSelector, message);
-        require(linkToken.balanceOf(address(this)) >= fee, "Insufficient LINK balance");
-
-        linkToken.approve(address(router), fee);
-        messageId = router.ccipSend(_destinationChainSelector, message);
+        
+        uint256 fee = router.getFee(block.chainid, evmMessage);
+        require(address(this).balance >= fee, "Insufficient fee");
+        
+        bytes32 messageId = router.ccipSend{value: fee}(block.chainid, evmMessage);
         emit MessageSent(messageId);
+        return messageId;
     }
+    
+    receive() external payable {}
 }

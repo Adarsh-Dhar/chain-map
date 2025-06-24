@@ -6,32 +6,21 @@ import "../src/Sender.sol";
 
 contract SenderTest is Test {
     Sender sender;
-    address router = makeAddr("router");
-    address linkToken = makeAddr("linkToken");
+    address mockRouter = address(0x123);
+    address linkToken = address(0x456);
     
     function setUp() public {
-        sender = new Sender(router, linkToken);
+        sender = new Sender(mockRouter, linkToken);
+        sender.setReceiver(address(0x789));
     }
-
+    
     function testSendMessage() public {
-        vm.prank(address(0x123));
-        vm.mockCall(
-            router,
-            abi.encodeWithSignature("getFee(uint64,bytes)"),
-            abi.encode(1 ether)
-        );
-        vm.mockCall(
-            linkToken,
-            abi.encodeWithSelector(IERC20.approve.selector),
-            abi.encode(true)
-        );
-        vm.mockCall(
-            router,
-            abi.encodeWithSelector(IRouterClient.ccipSend.selector),
-            abi.encode(bytes32("messageId"))
-        );
+        vm.deal(address(sender), 1 ether);
+        string memory message = "hello world";
         
-        bytes32 messageId = sender.sendMessage(1, address(0x456), "hello world");
-        assertEq(messageId, bytes32("messageId"));
+        vm.prank(address(0));
+        bytes32 messageId = sender.sendMessage(message);
+        
+        assert(messageId != bytes32(0));
     }
 }

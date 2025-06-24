@@ -160,11 +160,15 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
           'cd Receiver && npm init -y',
           'npm install --save-dev hardhat',
           'printf \'/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n};\\n\' > hardhat.config.js',
+          'mkdir -p contracts',
+          'mkdir -p ignition/modules',
           'cd ..',
           'mkdir -p Sender',
           'cd Sender && npm init -y',
           'npm install --save-dev hardhat',
           'printf \'/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n};\\n\' > hardhat.config.js',
+          'mkdir -p contracts',
+          'mkdir -p ignition/modules',
           'cd ..'
         ].join(' && '));
       } catch (setupError) {

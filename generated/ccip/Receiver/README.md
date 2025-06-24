@@ -1,15 +1,7 @@
-# Receiver CCIP Contract
-Install dependencies:
-```bash
-forge install chainlink/chainlink foundry-rs/forge-std openzeppelin/openzeppelin-contracts
-```
+# Receiver
+Chainlink CCIP Receiver Contract
 
-Build:
-```bash
-forge build
-```
-
-Test:
-```bash
-forge test
-```
+### Setup
+1. Install Foundry
+2. forge install
+3. forge build
