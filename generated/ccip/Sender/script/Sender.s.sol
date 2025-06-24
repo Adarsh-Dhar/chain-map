@@ -7,7 +7,7 @@ import "../src/Sender.sol";
 contract DeploySender is Script {
     function run() external {
         vm.startBroadcast();
-        new Sender(0x123456789, 0x987654321);
+        new Sender(0x1234567890ABCDEF1234567890ABCDEF12345678, 0xABCDEF1234567890ABCDEF1234567890ABCDEF12);
         vm.stopBroadcast();
     }
 }
