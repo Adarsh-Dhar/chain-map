@@ -1,6 +1,6 @@
 # Sender Contract
-Chainlink CCIP Sender implementation. Run tests:
-```bash
-forge install
-forge test
-```
+A Chainlink CCIP message sender contract. 
+## Usage
+1. Install dependencies: `forge install chainlink/chainlink`
+2. Build: `forge build`
+3. Test: `forge test`

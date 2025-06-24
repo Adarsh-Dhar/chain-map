@@ -66,6 +66,19 @@ async function cleanupOldContainers() {
   });
 }
 
+export function runCommandInContainerAsRoot(containerId: string, command: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const dockerCmd = `docker exec -u root ${containerId} sh -c "${command}"`;
+    exec(dockerCmd, (error, stdout, stderr) => {
+      if (error) {
+        reject(stderr || error.message);
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+}
+
 export async function startCodeServer(workspaceId: string): Promise<CodeServerInstance> {
   // Clean up old containers first
   await cleanupOldContainers().catch(err => 
@@ -89,13 +102,9 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
   for (const file of workspace.files) {
     const fullPath = path.join(projectDir, file.path);
     const dirName = path.dirname(fullPath);
-
-    // Create directory if it doesn't exist
     if (!existsSync(dirName)) {
       mkdirSync(dirName, { recursive: true });
     }
-
-    // Write the file
     writeFileSync(fullPath, file.content || '');
   }
   
@@ -122,7 +131,6 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
     "docker run -d",
     `--name ${containerName}`,
     `-e PASSWORD=${password}`,
-    `-e NVM_DIR=/home/coder/.nvm`,
     `-p ${port}:8080`,
     `-v ${projectDir}:/home/coder/project`,
     `-w /home/coder/project`,
@@ -135,7 +143,7 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
   console.log("Executing docker command:", cmd);
 
   return new Promise((resolve, reject) => {
-    exec(cmd, (err, stdout, stderr) => {
+    exec(cmd, async (err, stdout, stderr) => {
       if (err) {
         console.error("Docker run error:", {
           error: err.message,
@@ -147,63 +155,42 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
         return;
       }
       const containerId = stdout.trim();
-      console.log("Container started successfully:", {
-        containerId,
-        port
-      });
       const url = `http://localhost:${port}`;
 
-      // Clear the workspace directory before starting the container
-      if (existsSync(projectDir)) {
-        const files = fs.readdirSync(projectDir);
-        for (const file of files) {
-          const filePath = path.join(projectDir, file);
-          fs.rmSync(filePath, { recursive: true, force: true });
-        }
-      }
+      // SYSTEM-WIDE NODE INSTALLATION
+      try {
+        await runCommandInContainerAsRoot(containerId, [
+          "apt-get update",
+          "curl -fsSL https://deb.nodesource.com/setup_22.x | bash -",
+          "apt-get install -y nodejs",
+          "ln -sf /usr/bin/node /usr/local/bin/node",
+          "ln -sf /usr/bin/npm /usr/local/bin/npm"
+        ].join(' && '));
 
-      // Immediately run Hardhat install and setup commands in the background
-      const setupCommands = [
-        "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash",
-        "export NVM_DIR=\"$HOME/.nvm\"",
-        "[ -s \"$NVM_DIR/nvm.sh\" ] && \\. \"$NVM_DIR/nvm.sh\"",
-        "nvm install 22",
-        "node -v",
-        "npm -v",
+        // PROJECT SETUP
+        await runCommandInContainer(containerId, [
+          'mkdir -p Receiver',
+          'cd Receiver && npm init -y',
+          'npm install --save-dev hardhat',
+          'cd ..',
+          'mkdir -p Sender',
+          'cd Sender && npm init -y',
+          'npm install --save-dev hardhat'
+        ].join(' && '));
 
-        // Create and setup Receiver project
-        'mkdir Receiver',
-        'cd Receiver',
-        'npm init -y',
-        'npm install --save-dev hardhat',
-        'npx hardhat init --force',
-        'cd ..',
-
-        // Create and setup Sender project
-        'mkdir Sender',
-        'cd Sender',
-        'npm init -y',
-        'npm install --save-dev hardhat',
-        'npx hardhat init --force',
-        'cd ..'
-      ];
-
-      runCommandInContainer(containerId, setupCommands.join(' && '))
-        .then(async output => {
-          console.log('Hardhat setup output:', output);
-
-          // Overwrite boilerplate files with LLM-generated content from DB
-          const workspaceWithFiles = await getWorkspaceWithFiles(workspaceId);
-          if (workspaceWithFiles && workspaceWithFiles.files) {
-            for (const file of workspaceWithFiles.files) {
-              const fullPath = path.join(projectDir, file.path);
-              await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
-              await fs.promises.writeFile(fullPath, file.content || '', 'utf8');
-            }
-            console.log('Overwrote boilerplate files with LLM-generated content.');
+        // WRITE LLM-GENERATED FILES
+        const workspaceWithFiles = await getWorkspaceWithFiles(workspaceId);
+        if (workspaceWithFiles && workspaceWithFiles.files) {
+          for (const file of workspaceWithFiles.files) {
+            const fullPath = path.join(projectDir, file.path);
+            await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
+            await fs.promises.writeFile(fullPath, file.content || '', 'utf8');
           }
-        })
-        .catch(error => console.error('Hardhat setup error:', error));
+          console.log('Overwrote boilerplate files with LLM-generated content.');
+        }
+      } catch (setupError) {
+        console.error('Setup failed:', setupError);
+      }
 
       resolve({ url, password, containerId, port, workspaceId, tempDir: projectDir });
     });
@@ -244,8 +231,8 @@ export async function cleanupTempFiles(tempDir: string): Promise<void> {
 
 export function runCommandInContainer(containerId: string, command: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    // Run the command in the container using bash -c for chaining
-    const dockerCmd = `docker exec ${containerId} bash -c "${command}"`;
+    // Run the command in the container using bash -lc for login shell
+    const dockerCmd = `docker exec ${containerId} bash -lc "${command}"`;
     exec(dockerCmd, (error, stdout, stderr) => {
       if (error) {
         reject(stderr || error.message);

@@ -13,26 +13,14 @@ contract SenderTest is Test {
         sender = new Sender(mockRouter, linkToken);
     }
 
-    function test_SendMessage() public {
-        vm.mockCall(
-            mockRouter,
-            abi.encodeWithSelector(IRouterClient.getFee.selector),
-            abi.encode(100)
-        );
+    function testSendMessage() public {
+        vm.mockCall(mockRouter, abi.encodeWithSelector(IRouterClient.getFee.selector), abi.encode(1e18));
+        vm.mockCall(mockRouter, abi.encodeWithSelector(IRouterClient.ccipSend.selector), abi.encode(bytes32("1")));
         
-        vm.mockCall(
-            linkToken,
-            abi.encodeCall(IERC20.transferFrom, (address(this), address(sender), 100)),
-            abi.encode(true)
-        );
+        vm.startPrank(address(1));
+        bytes32 messageId = sender.sendMessage(1, address(0x789), "hello world");
+        vm.stopPrank();
 
-        vm.mockCall(
-            mockRouter,
-            abi.encodeWithSelector(IRouterClient.ccipSend.selector),
-            abi.encode(bytes32("messageId"))
-        );
-
-        bytes32 messageId = sender.sendMessage(1, address(0x789));
-        assertEq(messageId, bytes32("messageId"));
+        assertEq(messageId, bytes32("1"));
     }
 }

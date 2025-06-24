@@ -12,16 +12,18 @@ contract ReceiverTest is Test {
         receiver = new Receiver(mockRouter);
     }
 
-    function test_ReceiveMessage() public {
+    function testReceiveMessage() public {
         Client.Any2EVMMessage memory message = Client.Any2EVMMessage({
-            messageId: bytes32("id"),
+            messageId: bytes32("1"),
             sourceChainSelector: 1,
             sender: abi.encode(address(0x456)),
             data: abi.encode("hello world"),
-            destTokenAmounts: new Client.EVMTokenAmount[](0)
+            tokenAmounts: new Client.EVMTokenAmount[](0)
         });
 
         vm.prank(mockRouter);
+        vm.expectEmit(true, true, true, true);
+        emit MessageReceived(bytes32("1"));
         receiver.ccipReceive(message);
         
         assertEq(receiver.lastMessage(), "hello world");

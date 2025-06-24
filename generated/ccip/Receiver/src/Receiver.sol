@@ -6,13 +6,18 @@ import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.s
 
 contract Receiver is CCIPReceiver {
     string public lastMessage;
-    
-    event MessageReceived(bytes32 messageId);
 
+    event MessageReceived(bytes32 messageId);
+    
     constructor(address router) CCIPReceiver(router) {}
 
     function _ccipReceive(Client.Any2EVMMessage memory message) internal override {
-        lastMessage = abi.decode(message.data, (string));
+        bytes memory data = message.data;
+        lastMessage = abi.decode(data, (string));
         emit MessageReceived(message.messageId);
+    }
+
+    function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
+        return interfaceId == type(IAny2EVMMessageReceiver).interfaceId || super.supportsInterface(interfaceId);
     }
 }
