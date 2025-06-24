@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "forge-std/Script.sol";
-import "../src/Sender.sol";
+import {Script} from "forge-std/Script.sol";
+import {Sender} from "../src/Sender.sol";
 
 contract DeploySender is Script {
-    function run() external {
+    function run() public returns (address) {
         vm.startBroadcast();
-        new Sender(0x123, 0x456);
+        Sender sender = new Sender(vm.envAddress("ROUTER_ADDRESS"));
         vm.stopBroadcast();
+        return address(sender);
     }
 }

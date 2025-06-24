@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "forge-std/Script.sol";
-import "../src/Receiver.sol";
+import {Script} from "forge-std/Script.sol";
+import {Receiver} from "../src/Receiver.sol";
 
 contract DeployReceiver is Script {
-    function run() external {
+    function run() public returns (address) {
         vm.startBroadcast();
-        new Receiver(0x123);
+        Receiver receiver = new Receiver(vm.envAddress("ROUTER_ADDRESS"));
         vm.stopBroadcast();
+        return address(receiver);
     }
 }

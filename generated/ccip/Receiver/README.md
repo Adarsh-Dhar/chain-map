@@ -1,7 +1,18 @@
-# Receiver
-Chainlink CCIP Receiver Contract
+# Receiver Contract
 
-### Setup
-1. Install Foundry
-2. forge install
-3. forge build
+Chainlink CCIP Receiver implementation.
+
+## Setup
+1. Install dependencies:
+```bash
+npm install @chainlink/contracts-ccip
+forge install
+```
+2. Build:
+```bash
+forge build
+```
+3. Test:
+```bash
+forge test
+```

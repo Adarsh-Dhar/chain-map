@@ -171,6 +171,22 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
           'mkdir -p ignition/modules',
           'cd ..'
         ].join(' && '));
+        // Write Receiver.sol contract after contracts folder is created
+        const receiverContractsPath = path.join(projectDir, 'Receiver', 'contracts');
+        if (!fs.existsSync(receiverContractsPath)) {
+          fs.mkdirSync(receiverContractsPath, { recursive: true });
+        }
+        const receiverSolPath = path.join(receiverContractsPath, 'Receiver.sol');
+        const receiverSolContent = `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\nimport {CCIPReceiver} from \"@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol\";\nimport {Client} from \"@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol\";\n\ncontract Receiver is CCIPReceiver {\n    string public lastMessage;\n    \n    event MessageReceived(bytes32 messageId, string message);\n    \n    constructor(address router) CCIPReceiver(router) {}\n    \n    function _ccipReceive(Client.Any2EVMMessage memory message) internal override {\n        (string memory receivedMessage) = abi.decode(message.data, (string));\n        lastMessage = receivedMessage;\n        emit MessageReceived(message.messageId, receivedMessage);\n    }\n}\n`;
+        fs.writeFileSync(receiverSolPath, receiverSolContent, 'utf8');
+        // Write Sender.sol contract after contracts folder is created
+        const senderContractsPath = path.join(projectDir, 'Sender', 'contracts');
+        if (!fs.existsSync(senderContractsPath)) {
+          fs.mkdirSync(senderContractsPath, { recursive: true });
+        }
+        const senderSolPath = path.join(senderContractsPath, 'Sender.sol');
+        const senderSolContent = `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\nimport {CCIPSender} from \"@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPSender.sol\";\nimport {Client} from \"@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol\";\n\ncontract Sender is CCIPSender {\n    event MessageSent(bytes32 messageId, string message);\n    constructor(address router) CCIPSender(router) {}\n    function sendMessage(uint64 destinationChainSelector, address receiver) external {\n        string memory message = \"Hello from Sender!\";\n        bytes memory data = abi.encode(message);\n        Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({\n            receiver: abi.encode(receiver),\n            data: data,\n            tokenAmounts: new Client.EVMTokenAmount[](0),\n            extraArgs: \"\",\n            feeToken: address(0)\n        });\n        bytes32 messageId = _ccipSend(destinationChainSelector, evm2AnyMessage);\n        emit MessageSent(messageId, message);\n    }\n}\n`;
+        fs.writeFileSync(senderSolPath, senderSolContent, 'utf8');
       } catch (setupError) {
         console.error('Setup failed:', setupError);
       }
