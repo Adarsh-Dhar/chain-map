@@ -5,10 +5,9 @@ import {Script} from "forge-std/Script.sol";
 import {Receiver} from "../src/Receiver.sol";
 
 contract DeployReceiver is Script {
-    function run() public returns (address) {
+    function run() external {
         vm.startBroadcast();
-        Receiver receiver = new Receiver(vm.envAddress("ROUTER_ADDRESS"));
+        new Receiver(0x123456789);
         vm.stopBroadcast();
-        return address(receiver);
     }
 }

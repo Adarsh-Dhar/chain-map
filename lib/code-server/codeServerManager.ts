@@ -159,14 +159,14 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
           'mkdir -p Receiver',
           'cd Receiver && npm init -y',
           'npm install --save-dev hardhat',
-          'printf \'/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n};\\n\' > hardhat.config.js',
+          'printf \'require("@nomicfoundation/hardhat-toolbox");\\n\\n/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n  networks: {\\n    sepolia: {\\n      url: \\\"http://0.0.0.0:8545/\\\", // or Alchemy etc.\\n      accounts: [\\"0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80\\"], // use environment variables in production!\\n    },\\n  },\\n};\\n\' > hardhat.config.js',
           'mkdir -p contracts',
           'mkdir -p ignition/modules',
           'cd ..',
           'mkdir -p Sender',
           'cd Sender && npm init -y',
           'npm install --save-dev hardhat',
-          'printf \'/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n};\\n\' > hardhat.config.js',
+          'printf \'require("@nomicfoundation/hardhat-toolbox");\\n\\n/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n  networks: {\\n    sepolia: {\\n      url: \\\"http://0.0.0.0:8545/\\\", // or Alchemy etc.\\n      accounts: [\\"0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80\\"], // use environment variables in production!\\n    },\\n  },\\n};\\n\' > hardhat.config.js',
           'mkdir -p contracts',
           'mkdir -p ignition/modules',
           'cd ..'
@@ -187,6 +187,22 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
         const senderSolPath = path.join(senderContractsPath, 'Sender.sol');
         const senderSolContent = `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\nimport {CCIPSender} from \"@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPSender.sol\";\nimport {Client} from \"@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol\";\n\ncontract Sender is CCIPSender {\n    event MessageSent(bytes32 messageId, string message);\n    constructor(address router) CCIPSender(router) {}\n    function sendMessage(uint64 destinationChainSelector, address receiver) external {\n        string memory message = \"Hello from Sender!\";\n        bytes memory data = abi.encode(message);\n        Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({\n            receiver: abi.encode(receiver),\n            data: data,\n            tokenAmounts: new Client.EVMTokenAmount[](0),\n            extraArgs: \"\",\n            feeToken: address(0)\n        });\n        bytes32 messageId = _ccipSend(destinationChainSelector, evm2AnyMessage);\n        emit MessageSent(messageId, message);\n    }\n}\n`;
         fs.writeFileSync(senderSolPath, senderSolContent, 'utf8');
+        // Write Deploy.ts for Receiver
+        const receiverIgnitionModulesPath = path.join(projectDir, 'Receiver', 'ignition', 'modules');
+        if (!fs.existsSync(receiverIgnitionModulesPath)) {
+          fs.mkdirSync(receiverIgnitionModulesPath, { recursive: true });
+        }
+        const receiverDeployPath = path.join(receiverIgnitionModulesPath, 'Deploy.ts');
+        const receiverDeployContent = `// This setup uses Hardhat Ignition to manage smart contract deployments.\n// Learn more about it at https://hardhat.org/ignition\n\nimport { buildModule } from \"@nomicfoundation/hardhat-ignition/modules\";\n\nconst ReceiverModule = buildModule(\"ReceiverModule\", (m) => {\n  const router = m.getParameter(\"router\");\n  const receiver = m.contract(\"Receiver\", [router]);\n  return { receiver };\n});\n\nexport default ReceiverModule;\n`;
+        fs.writeFileSync(receiverDeployPath, receiverDeployContent, 'utf8');
+        // Write Deploy.ts for Sender
+        const senderIgnitionModulesPath = path.join(projectDir, 'Sender', 'ignition', 'modules');
+        if (!fs.existsSync(senderIgnitionModulesPath)) {
+          fs.mkdirSync(senderIgnitionModulesPath, { recursive: true });
+        }
+        const senderDeployPath = path.join(senderIgnitionModulesPath, 'Deploy.ts');
+        const senderDeployContent = `// This setup uses Hardhat Ignition to manage smart contract deployments.\n// Learn more about it at https://hardhat.org/ignition\n\nimport { buildModule } from \"@nomicfoundation/hardhat-ignition/modules\";\n\nconst SenderModule = buildModule(\"SenderModule\", (m) => {\n  const router = m.getParameter(\"router\");\n  const sender = m.contract(\"Sender\", [router]);\n  return { sender };\n});\n\nexport default SenderModule;\n`;
+        fs.writeFileSync(senderDeployPath, senderDeployContent, 'utf8');
       } catch (setupError) {
         console.error('Setup failed:', setupError);
       }
