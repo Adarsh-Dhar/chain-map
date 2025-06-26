@@ -7,7 +7,7 @@ import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.s
 contract Receiver is CCIPReceiver {
     string public lastMessage;
 
-    constructor(address router) CCIPReceiver(router) {}
+    constructor(address _router) CCIPReceiver(_router) {}
 
     function _ccipReceive(
         Client.Any2EVMMessage memory message

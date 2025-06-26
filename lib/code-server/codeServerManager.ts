@@ -159,14 +159,16 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
           'mkdir -p Receiver',
           'cd Receiver && npm init -y',
           'npm install --save-dev hardhat',
-          'printf \'require("@nomicfoundation/hardhat-toolbox");\\n\\n/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n  networks: {\\n    sepolia: {\\n      url: \\\"http://0.0.0.0:8545/\\\", // or Alchemy etc.\\n      accounts: [\\"0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80\\"], // use environment variables in production!\\n    },\\n  },\\n};\\n\' > hardhat.config.js',
+          'printf \'require(\\"@nomicfoundation/hardhat-ignition\\");\\n\\n/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n  networks: {\\n    sepolia: {\\n      url: \\\"https://sepolia.infura.io/v3/dc10a4b3a75349aab5abdf2314cbad35\\\", // or Alchemy etc.\\n      accounts: [\\\"0x4bf9a4897c0d417d1bfe9351519322f7d56d4f0ce53c8b6e67289fe26267e0bc\\\"] // use environment variables in production!\\n    },\\n  },\\n};\\n\' > hardhat.config.js',
+          'npm install @chainlink/contracts-ccip @openzeppelin/contracts @nomicfoundation/hardhat-ignition',
           'mkdir -p contracts',
           'mkdir -p ignition/modules',
           'cd ..',
           'mkdir -p Sender',
           'cd Sender && npm init -y',
           'npm install --save-dev hardhat',
-          'printf \'require("@nomicfoundation/hardhat-toolbox");\\n\\n/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n  networks: {\\n    sepolia: {\\n      url: \\\"http://0.0.0.0:8545/\\\", // or Alchemy etc.\\n      accounts: [\\"0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80\\"], // use environment variables in production!\\n    },\\n  },\\n};\\n\' > hardhat.config.js',
+          'printf \'require(\\"@nomicfoundation/hardhat-ignition\\");\\n\\n/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n  networks: {\\n    sepolia: {\\n      url: \\\"https://sepolia.infura.io/v3/dc10a4b3a75349aab5abdf2314cbad35\\\", // or Alchemy etc.\\n      accounts: [\\\"0x4bf9a4897c0d417d1bfe9351519322f7d56d4f0ce53c8b6e67289fe26267e0bc\\\"] // use environment variables in production!\\n    },\\n  },\\n};\\n\' > hardhat.config.js',
+          'npm install @chainlink/contracts-ccip @openzeppelin/contracts @nomicfoundation/hardhat-ignition',
           'mkdir -p contracts',
           'mkdir -p ignition/modules',
           'cd ..'
@@ -185,7 +187,7 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
           fs.mkdirSync(senderContractsPath, { recursive: true });
         }
         const senderSolPath = path.join(senderContractsPath, 'Sender.sol');
-        const senderSolContent = `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\nimport {CCIPSender} from \"@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPSender.sol\";\nimport {Client} from \"@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol\";\n\ncontract Sender is CCIPSender {\n    event MessageSent(bytes32 messageId, string message);\n    constructor(address router) CCIPSender(router) {}\n    function sendMessage(uint64 destinationChainSelector, address receiver) external {\n        string memory message = \"Hello from Sender!\";\n        bytes memory data = abi.encode(message);\n        Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({\n            receiver: abi.encode(receiver),\n            data: data,\n            tokenAmounts: new Client.EVMTokenAmount[](0),\n            extraArgs: \"\",\n            feeToken: address(0)\n        });\n        bytes32 messageId = _ccipSend(destinationChainSelector, evm2AnyMessage);\n        emit MessageSent(messageId, message);\n    }\n}\n`;
+        const senderSolContent = `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\nimport {IRouterClient} from \"@chainlink/contracts-ccip/contracts/interfaces/IRouterClient.sol\";\nimport {Client} from \"@chainlink/contracts-ccip/contracts/libraries/Client.sol\";\nimport {IERC20} from \"@openzeppelin/contracts/token/ERC20/IERC20.sol\";\n\ncontract Sender {\n    IRouterClient private immutable i_router;\n    \n    event MessageSent(bytes32 messageId, string message);\n    \n    error NotEnoughBalance(uint256 currentBalance, uint256 calculatedFees);\n    error NothingToWithdraw();\n    error FailedToWithdrawEth(address owner, address target, uint256 value);\n    \n    constructor(address router) {\n        i_router = IRouterClient(router);\n    }\n    \n    function sendMessage(\n        uint64 destinationChainSelector, \n        address receiver\n    ) external payable {\n        string memory message = \"Hello from Sender!\";\n        bytes memory data = abi.encode(message);\n        \n        Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({\n            receiver: abi.encode(receiver),\n            data: data,\n            tokenAmounts: new Client.EVMTokenAmount[](0),\n            extraArgs: Client._argsToBytes(\n                Client.EVMExtraArgsV1({gasLimit: 200_000})\n            ),\n            feeToken: address(0) // Native token for fees\n        });\n        \n        // Get the fee required to send the message\n        uint256 fees = i_router.getFee(destinationChainSelector, evm2AnyMessage);\n        \n        if (fees > msg.value) {\n            revert NotEnoughBalance(msg.value, fees);\n        }\n        \n        // Send the message through the router and store the returned message ID\n        bytes32 messageId = i_router.ccipSend{value: fees}(\n            destinationChainSelector,\n            evm2AnyMessage\n        );\n        \n        emit MessageSent(messageId, message);\n        \n        // Refund excess ETH\n        if (msg.value > fees) {\n            payable(msg.sender).transfer(msg.value - fees);\n        }\n    }\n    \n    function sendMessageWithToken(\n        uint64 destinationChainSelector,\n        address receiver,\n        address token,\n        uint256 amount\n    ) external payable {\n        string memory message = \"Hello with tokens!\";\n        bytes memory data = abi.encode(message);\n        \n        // Transfer tokens from sender to this contract\n        IERC20(token).transferFrom(msg.sender, address(this), amount);\n        \n        // Approve the router to spend tokens\n        IERC20(token).approve(address(i_router), amount);\n        \n        Client.EVMTokenAmount[] memory tokenAmounts = new Client.EVMTokenAmount[](1);\n        tokenAmounts[0] = Client.EVMTokenAmount({\n            token: token,\n            amount: amount\n        });\n        \n        Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({\n            receiver: abi.encode(receiver),\n            data: data,\n            tokenAmounts: tokenAmounts,\n            extraArgs: Client._argsToBytes(\n                Client.EVMExtraArgsV1({gasLimit: 200_000})\n            ),\n            feeToken: address(0) // Native token for fees\n        });\n        \n        uint256 fees = i_router.getFee(destinationChainSelector, evm2AnyMessage);\n        \n        if (fees > msg.value) {\n            revert NotEnoughBalance(msg.value, fees);\n        }\n        \n        bytes32 messageId = i_router.ccipSend{value: fees}(\n            destinationChainSelector,\n            evm2AnyMessage\n        );\n        \n        emit MessageSent(messageId, message);\n        \n        // Refund excess ETH\n        if (msg.value > fees) {\n            payable(msg.sender).transfer(msg.value - fees);\n        }\n    }\n    \n    // Allow contract to receive Ether\n    receive() external payable {}\n    \n    // Withdraw function for contract owner (you might want to add access control)\n    function withdraw(address beneficiary) public {\n        uint256 amount = address(this).balance;\n        if (amount == 0) revert NothingToWithdraw();\n        \n        (bool sent, ) = beneficiary.call{value: amount}(\"\");\n        if (!sent) revert FailedToWithdrawEth(msg.sender, beneficiary, amount);\n    }\n    \n    // View function to get fee estimate\n    function getFee(\n        uint64 destinationChainSelector,\n        address receiver,\n        string memory message\n    ) external view returns (uint256 fees) {\n        bytes memory data = abi.encode(message);\n        \n        Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({\n            receiver: abi.encode(receiver),\n            data: data,\n            tokenAmounts: new Client.EVMTokenAmount[](0),\n            extraArgs: Client._argsToBytes(\n                Client.EVMExtraArgsV1({gasLimit: 200_000})\n            ),\n            feeToken: address(0)\n        });\n        \n        return i_router.getFee(destinationChainSelector, evm2AnyMessage);\n    }\n}\n`;
         fs.writeFileSync(senderSolPath, senderSolContent, 'utf8');
         // Write Deploy.ts for Receiver
         const receiverIgnitionModulesPath = path.join(projectDir, 'Receiver', 'ignition', 'modules');
@@ -193,7 +195,7 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
           fs.mkdirSync(receiverIgnitionModulesPath, { recursive: true });
         }
         const receiverDeployPath = path.join(receiverIgnitionModulesPath, 'Deploy.ts');
-        const receiverDeployContent = `// This setup uses Hardhat Ignition to manage smart contract deployments.\n// Learn more about it at https://hardhat.org/ignition\n\nimport { buildModule } from \"@nomicfoundation/hardhat-ignition/modules\";\n\nconst ReceiverModule = buildModule(\"ReceiverModule\", (m) => {\n  const router = m.getParameter(\"router\");\n  const receiver = m.contract(\"Receiver\", [router]);\n  return { receiver };\n});\n\nexport default ReceiverModule;\n`;
+        const receiverDeployContent = `// This setup uses Hardhat Ignition to manage smart contract deployments.\n// Learn more about it at https://hardhat.org/ignition\n\nimport { buildModule } from \"@nomicfoundation/hardhat-ignition/modules\";\n\nconst ReceiverModule = buildModule(\"ReceiverModule\", (m) => {\n  // Replace with your actual router address or set as parameter with default\n  const router = m.getParameter(\"router\", \"0x1234567890123456789012345678901234567890\");\n  const receiver = m.contract(\"Receiver\", [router]);\n  return { receiver };\n});\n\nexport default ReceiverModule;\n`;
         fs.writeFileSync(receiverDeployPath, receiverDeployContent, 'utf8');
         // Write Deploy.ts for Sender
         const senderIgnitionModulesPath = path.join(projectDir, 'Sender', 'ignition', 'modules');
@@ -201,7 +203,7 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
           fs.mkdirSync(senderIgnitionModulesPath, { recursive: true });
         }
         const senderDeployPath = path.join(senderIgnitionModulesPath, 'Deploy.ts');
-        const senderDeployContent = `// This setup uses Hardhat Ignition to manage smart contract deployments.\n// Learn more about it at https://hardhat.org/ignition\n\nimport { buildModule } from \"@nomicfoundation/hardhat-ignition/modules\";\n\nconst SenderModule = buildModule(\"SenderModule\", (m) => {\n  const router = m.getParameter(\"router\");\n  const sender = m.contract(\"Sender\", [router]);\n  return { sender };\n});\n\nexport default SenderModule;\n`;
+        const senderDeployContent = `// This setup uses Hardhat Ignition to manage smart contract deployments.\n// Learn more about it at https://hardhat.org/ignition\n\nimport { buildModule } from \"@nomicfoundation/hardhat-ignition/modules\";\n\nconst SenderModule = buildModule(\"SenderModule\", (m) => {\n  // Replace with your actual router address or set as parameter with default\n  const router = m.getParameter(\"router\", \"0x1234567890123456789012345678901234567890\");\n  const sender = m.contract(\"Sender\", [router]);\n  return { sender };\n});\n\nexport default SenderModule;\n`;
         fs.writeFileSync(senderDeployPath, senderDeployContent, 'utf8');
       } catch (setupError) {
         console.error('Setup failed:', setupError);
@@ -217,12 +219,19 @@ export async function stopCodeServer(containerId: string): Promise<void> {
   return new Promise((resolve, reject) => {
     exec(`docker rm -f ${containerId}`, (err, stdout, stderr) => {
       if (err) {
+        const isZombieError = stderr && stderr.includes("could not kill: tried to kill container, but did not receive an exit event");
         console.error("Failed to stop container:", {
           containerId,
           error: err.message,
           stderr
         });
-        reject(new Error(`Failed to stop container: ${stderr || err.message}`));
+        if (isZombieError) {
+          // Log and continue
+          console.warn("Container was already dead/zombie, continuing...");
+          resolve();
+        } else {
+          reject(new Error(`Failed to stop container: ${stderr || err.message}`));
+        }
       } else {
         console.log("Container stopped successfully:", containerId);
         resolve();

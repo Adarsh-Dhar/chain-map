@@ -1,27 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {Test} from "forge-std/Test.sol";
-import {Sender} from "../src/Sender.sol";
+import "forge-std/Test.sol";
+import "../src/Sender.sol";
 
 contract SenderTest is Test {
     Sender sender;
-    address mockRouter = address(0x123);
-    address linkToken = address(0x456);
+    address router = makeAddr("router");
+    address linkToken = makeAddr("linkToken");
 
     function setUp() public {
-        sender = new Sender(mockRouter, linkToken);
+        sender = new Sender(router, linkToken);
     }
 
-    function test_SendMessage() public {
-        vm.deal(address(sender), 1 ether);
+    function testSendMessage() public {
         vm.mockCall(
-            mockRouter,
-            abi.encodeWithSelector(Sender(mockRouter).ccipSend.selector),
-            abi.encode(bytes32("1"))
+            router,
+            abi.encodeWithSelector(IRouterClient.getFee.selector),
+            abi.encode(1 ether)
+        );
+        vm.mockCall(
+            router,
+            abi.encodeWithSelector(IRouterClient.ccipSend.selector),
+            abi.encode(keccak256("messageId"))
         );
         
-        bytes32 messageId = sender.sendMessage(1, address(0x789));
-        assertEq(messageId, bytes32("1"));
+        vm.prank(address(0x123));
+        bytes32 messageId = sender.sendMessage(1, address(0x456));
+        assertEq(messageId, keccak256("messageId"));
     }
 }
