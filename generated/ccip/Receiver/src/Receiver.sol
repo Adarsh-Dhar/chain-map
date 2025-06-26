@@ -6,10 +6,12 @@ import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.s
 
 contract Receiver is CCIPReceiver {
     string public lastMessage;
-
+    
     constructor(address router) CCIPReceiver(router) {}
-
-    function _ccipReceive(Client.Any2EVMMessage memory message) internal override {
+    
+    function _ccipReceive(
+        Client.Any2EVMMessage memory message
+    ) internal override {
         lastMessage = abi.decode(message.data, (string));
     }
 }

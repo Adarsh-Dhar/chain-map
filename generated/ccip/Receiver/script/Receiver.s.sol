@@ -5,9 +5,9 @@ import "forge-std/Script.sol";
 import "../src/Receiver.sol";
 
 contract DeployReceiver is Script {
-    function run() external {
+    function run() public {
         vm.startBroadcast();
-        new Receiver(0x12344321);
+        new Receiver(0x123);
         vm.stopBroadcast();
     }
 }

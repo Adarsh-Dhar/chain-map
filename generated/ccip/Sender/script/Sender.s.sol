@@ -5,9 +5,9 @@ import "forge-std/Script.sol";
 import "../src/Sender.sol";
 
 contract DeploySender is Script {
-    function run() external {
+    function run() public {
         vm.startBroadcast();
-        new Sender(0x12344321, 0x99999999);
+        new Sender(0x123, 1);
         vm.stopBroadcast();
     }
 }

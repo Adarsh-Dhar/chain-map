@@ -6,17 +6,17 @@ import "../src/Receiver.sol";
 
 contract ReceiverTest is Test {
     Receiver receiver;
-    address constant router = address(1);
-
+    address mockRouter = address(0x123);
+    
     function setUp() public {
-        receiver = new Receiver(router);
+        receiver = new Receiver(mockRouter);
     }
-
-    function test_ReceiveMessage() public {
+    
+    function testReceiveMessage() public {
         Client.Any2EVMMessage memory message;
-        message.data = abi.encode("test message");
-        vm.prank(address(receiver.router()));
+        message.data = abi.encode("hello world");
+        vm.prank(mockRouter);
         receiver.ccipReceive(message);
-        assertEq(receiver.lastMessage(), "test message");
+        assertEq(receiver.lastMessage(), "hello world");
     }
 }

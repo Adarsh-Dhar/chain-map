@@ -1,6 +1,7 @@
 # Sender Contract
-
 ## Setup
-1. Install dependencies: `forge install foundry-rs/forge-std openzeppelin/openzeppelin-contracts smartcontractkit/chainlink`
-2. Build: `forge build`
-3. Test: `forge test`
+1. forge install
+2. forge build
+## Usage
+Test: forge test
+Deploy: forge script script/Sender.s.sol --broadcast

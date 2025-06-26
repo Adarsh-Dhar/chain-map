@@ -184,6 +184,20 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
             'printf \'require(\\"@nomicfoundation/hardhat-ignition\\");\\n\\n/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n  networks: {\\n    sepolia: {\\n      url: \\\"https://sepolia.infura.io/v3/dc10a4b3a75349aab5abdf2314cbad35\\\", // or Alchemy etc.\\n      accounts: [\\"0x4bf9a4897c0d417d1bfe9351519322f7d56d4f0ce53c8b6e67289fe26267e0bc\\"] // use environment variables in production!\\n    },\\n  },\\n};\\n\' > hardhat.config.js',
             'mkdir -p contracts',
             'mkdir -p ignition/modules',
+            'cd ..',
+            'mkdir -p React',
+            'cd React && npm init -y',
+            'npm install react react-dom lucide-react',
+            'npm install --save-dev vite @vitejs/plugin-react tailwindcss postcss autoprefixer',
+            'npx tailwindcss init -p',
+            'mkdir -p src',
+            'echo "import React from \"react\";\n\nfunction App() {\n  return (<div className=\\"min-h-screen bg-gray-100 flex items-center justify-center\\">Hello React!</div>);\n}\n\nexport default App;\n" > src/App.jsx',
+            'echo "import { StrictMode } from \"react\";\nimport { createRoot } from \"react-dom/client\";\nimport App from \"./App.jsx\";\nimport \"./index.css\";\n\ncreateRoot(document.getElementById(\"root\")).render(<StrictMode><App /></StrictMode>);\n" > src/main.jsx',
+            'echo "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n" > src/index.css',
+            'echo "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>React + Vite</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"/src/main.jsx\"></script>\n  </body>\n</html>\n" > index.html',
+            'echo "/** @type {import(\'tailwindcss\').Config} */\nexport default {\n  content: [\'./index.html\', \'./src/**/*.{js,jsx,ts,tsx}\'],\n  theme: {\n    extend: {},\n  },\n  plugins: [],\n};\n" > tailwind.config.js',
+            'echo "export default {\n  plugins: {\n    tailwindcss: {},\n    autoprefixer: {},\n  },\n};\n" > postcss.config.js',
+            'echo "{\n  \"name\": \"react-app\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\",\n    \"preview\": \"vite preview\"\n  },\n  \"dependencies\": {\n    \"react\": \"^18.2.0\",\n    \"react-dom\": \"^18.2.0\",\n    \"lucide-react\": \"^0.344.0\"\n  },\n  \"devDependencies\": {\n    \"@vitejs/plugin-react\": \"^4.3.1\",\n    \"tailwindcss\": \"^3.4.1\",\n    \"postcss\": \"^8.4.35\",\n    \"autoprefixer\": \"^10.4.18\",\n    \"vite\": \"^5.4.2\"\n  }\n}\n" > package.json',
             'cd ..'
           ].join(' && '));
         } catch (setupStepError: any) {

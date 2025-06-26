@@ -6,16 +6,17 @@ import "../src/Sender.sol";
 
 contract SenderTest is Test {
     Sender sender;
-    address constant router = address(1);
-    address constant linkToken = address(2);
-
+    address mockRouter = address(0x123);
+    uint64 chainSelector = 1;
+    
     function setUp() public {
-        sender = new Sender(router, linkToken);
+        sender = new Sender(mockRouter, chainSelector);
+        sender.setReceiver(address(0x456));
     }
-
-    function test_SendMessage() public {
-        vm.prank(address(0xBEEF));
-        bytes32 messageId = sender.sendMessage(1, address(0xC0DE));
-        assertTrue(messageId != bytes32(0));
+    
+    function testSendMessage() public {
+        vm.prank(address(0));
+        bytes32 messageId = sender.sendMessage("hello world");
+        assert(messageId != bytes32(0));
     }
 }

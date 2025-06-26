@@ -6,26 +6,27 @@ import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.s
 
 contract Sender {
     IRouterClient public router;
-    address public linkToken;
+    address public receiver;
+    uint64 public destinationChainSelector;
     
-    event MessageSent(bytes32 messageId);
-
-    constructor(address _router, address _linkToken) {
+    constructor(address _router, uint64 _destinationChainSelector) {
         router = IRouterClient(_router);
-        linkToken = _linkToken;
+        destinationChainSelector = _destinationChainSelector;
     }
-
-    function sendMessage(uint64 destinationChainSelector, address receiver) external returns (bytes32) {
-        Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+    
+    function setReceiver(address _receiver) public {
+        receiver = _receiver;
+    }
+    
+    function sendMessage(string memory message) external returns (bytes32) {
+        Client.EVM2AnyMessage memory messageData = Client.EVM2AnyMessage({
             receiver: abi.encode(receiver),
-            data: abi.encode("hello world"),
+            data: abi.encode(message),
             tokenAmounts: new Client.EVMTokenAmount[](0),
             extraArgs: "",
-            feeToken: linkToken
+            feeToken: address(0)
         });
-
-        bytes32 messageId = router.ccipSend(destinationChainSelector, message);
-        emit MessageSent(messageId);
-        return messageId;
+        
+        return router.ccipSend(destinationChainSelector, messageData);
     }
 }
