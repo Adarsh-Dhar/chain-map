@@ -14,6 +14,8 @@ export interface CodeServerInstance {
   tempDir?: string;
   receiverDeployResult: string;
   senderDeployResult: string;
+  receiverAddress: string;
+  senderAddress: string;
 }
 
 const MAX_CONTAINERS = 5;
@@ -149,6 +151,8 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
       // SYSTEM-WIDE NODE INSTALLATION
       let receiverDeployResult = '';
       let senderDeployResult = '';
+      let receiverAddress = '';
+      let senderAddress = '';
       try {
         await runCommandInContainerAsRoot(containerId, [
           "apt-get update",
@@ -159,31 +163,43 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
         ].join(' && '));
 
         // PROJECT SETUP (only run commands, do not write any files)
-        await runCommandInContainer(containerId, [
-          'mkdir -p Receiver',
-          'cd Receiver && npm init -y',
-          'npm install --save-dev hardhat',
-          'printf \'require(\\"@nomicfoundation/hardhat-ignition\\");\\n\\n/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n  networks: {\\n    sepolia: {\\n      url: \\\"https://sepolia.infura.io/v3/dc10a4b3a75349aab5abdf2314cbad35\\\", // or Alchemy etc.\\n      accounts: [\\\"0x4bf9a4897c0d417d1bfe9351519322f7d56d4f0ce53c8b6e67289fe26267e0bc\\\"] // use environment variables in production!\\n    },\\n  },\\n};\\n\' > hardhat.config.js',
-          'npm install @chainlink/contracts-ccip @openzeppelin/contracts @nomicfoundation/hardhat-ignition',
-          'mkdir -p contracts',
-          'mkdir -p ignition/modules',
-          'cd ..',
-          'mkdir -p Sender',
-          'cd Sender && npm init -y',
-          'npm install --save-dev hardhat',
-          'printf \'require(\\"@nomicfoundation/hardhat-ignition\\");\\n\\n/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n  networks: {\\n    sepolia: {\\n      url: \\\"https://sepolia.infura.io/v3/dc10a4b3a75349aab5abdf2314cbad35\\\", // or Alchemy etc.\\n      accounts: [\\\"0x4bf9a4897c0d417d1bfe9351519322f7d56d4f0ce53c8b6e67289fe26267e0bc\\\"] // use environment variables in production!\\n    },\\n  },\\n};\\n\' > hardhat.config.js',
-          'npm install @chainlink/contracts-ccip @openzeppelin/contracts @nomicfoundation/hardhat-ignition',
-          'mkdir -p contracts',
-          'mkdir -p ignition/modules',
-          'cd ..'
-        ].join(' && '));
+        try {
+          await runCommandInContainer(containerId, [
+            'mkdir -p Receiver',
+            'cd Receiver && npm init -y',
+            'npm install --save-dev hardhat',
+            'npm install @chainlink/contracts-ccip @openzeppelin/contracts @nomicfoundation/hardhat-ignition',
+            'printf \'require(\\"@nomicfoundation/hardhat-ignition\\");\\n\\n/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n  networks: {\\n    sepolia: {\\n      url: \\\"https://sepolia.infura.io/v3/dc10a4b3a75349aab5abdf2314cbad35\\\", // or Alchemy etc.\\n      accounts: [\\"0x4bf9a4897c0d417d1bfe9351519322f7d56d4f0ce53c8b6e67289fe26267e0bc\\"] // use environment variables in production!\\n    },\\n  },\\n};\\n\' > hardhat.config.js',
+            'mkdir -p contracts',
+            'mkdir -p ignition/modules',
+            'cd ..',
+            'mkdir -p Sender',
+            'cd Sender && npm init -y',
+            'npm install --save-dev hardhat',
+            'npm install @chainlink/contracts-ccip @openzeppelin/contracts @nomicfoundation/hardhat-ignition',
+            'printf \'require(\\"@nomicfoundation/hardhat-ignition\\");\\n\\n/** @type import(\\"hardhat/config\\").HardhatUserConfig */\\nmodule.exports = {\\n  solidity: \\\"0.8.28\\\",\\n  networks: {\\n    sepolia: {\\n      url: \\\"https://sepolia.infura.io/v3/dc10a4b3a75349aab5abdf2314cbad35\\\", // or Alchemy etc.\\n      accounts: [\\"0x4bf9a4897c0d417d1bfe9351519322f7d56d4f0ce53c8b6e67289fe26267e0bc\\"] // use environment variables in production!\\n    },\\n  },\\n};\\n\' > hardhat.config.js',
+            'mkdir -p contracts',
+            'mkdir -p ignition/modules',
+            'cd ..'
+          ].join(' && '));
+        } catch (setupStepError: any) {
+          console.error('Project setup failed!');
+          if (setupStepError.stdout) {
+            console.error('Setup stdout:', setupStepError.stdout);
+          }
+          if (setupStepError.stderr) {
+            console.error('Setup stderr:', setupStepError.stderr);
+          }
+          console.error('Setup error (string):', setupStepError?.toString?.() || setupStepError);
+          throw setupStepError;
+        }
         // Write Receiver.sol contract after contracts folder is created
         const receiverContractsPath = path.join(projectDir, 'Receiver', 'contracts');
         if (!fs.existsSync(receiverContractsPath)) {
           fs.mkdirSync(receiverContractsPath, { recursive: true });
         }
         const receiverSolPath = path.join(receiverContractsPath, 'Receiver.sol');
-        const receiverSolContent = `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\nimport {CCIPReceiver} from \"@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol\";\nimport {Client} from \"@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol\";\n\ncontract Receiver is CCIPReceiver {\n    string public lastMessage;\n    \n    event MessageReceived(bytes32 messageId, string message);\n    \n    constructor(address router) CCIPReceiver(router) {}\n    \n    function _ccipReceive(Client.Any2EVMMessage memory message) internal override {\n        (string memory receivedMessage) = abi.decode(message.data, (string));\n        lastMessage = receivedMessage;\n        emit MessageReceived(message.messageId, receivedMessage);\n    }\n}\n`;
+        const receiverSolContent = `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\nimport {CCIPReceiver} from \"@chainlink/contracts-ccip/contracts/applications/CCIPReceiver.sol\";\nimport {Client} from \"@chainlink/contracts-ccip/contracts/libraries/Client.sol\";\n\ncontract Receiver is CCIPReceiver {\n    string public lastMessage;\n    \n    event MessageReceived(bytes32 messageId, string message);\n    \n    constructor(address router) CCIPReceiver(router) {}\n    \n    function _ccipReceive(Client.Any2EVMMessage memory message) internal override {\n        (string memory receivedMessage) = abi.decode(message.data, (string));\n        lastMessage = receivedMessage;\n        emit MessageReceived(message.messageId, receivedMessage);\n    }\n}\n`;
         fs.writeFileSync(receiverSolPath, receiverSolContent, 'utf8');
         // Write Sender.sol contract after contracts folder is created
         const senderContractsPath = path.join(projectDir, 'Sender', 'contracts');
@@ -213,11 +229,20 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
         // Run deployment in Receiver
         let receiverDeployResult = '';
         try {
+          console.log('Starting Receiver deployment...');
           receiverDeployResult = await runCommandInContainer(
             containerId,
             'cd Receiver && yes | npx hardhat ignition deploy ignition/modules/Deploy.ts --network sepolia'
           );
-          console.log('Receiver deploy result:', receiverDeployResult);
+          console.log('Receiver deploy result (raw output):', receiverDeployResult);
+          // Extract receiver address
+          const receiverMatch = receiverDeployResult.match(/ReceiverModule#Receiver\s+-\s+(0x[a-fA-F0-9]{40})/);
+          if (receiverMatch) {
+            receiverAddress = receiverMatch[1];
+            console.log('Extracted receiver address:', receiverAddress);
+          } else {
+            console.warn('No receiver address found in deploy output.');
+          }
         } catch (e: any) {
           receiverDeployResult = e?.toString() || 'Receiver deploy failed';
           console.error('Receiver deploy failed:', receiverDeployResult);
@@ -231,6 +256,11 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
             'cd Sender && yes | npx hardhat ignition deploy ignition/modules/Deploy.ts --network sepolia'
           );
           console.log('Sender deploy result:', senderDeployResult);
+          // Extract sender address
+          const senderMatch = senderDeployResult.match(/SenderModule#Sender\s+-\s+(0x[a-fA-F0-9]{40})/);
+          if (senderMatch) {
+            senderAddress = senderMatch[1];
+          }
         } catch (e: any) {
           senderDeployResult = e?.toString() || 'Sender deploy failed';
           console.error('Sender deploy failed:', senderDeployResult);
@@ -239,7 +269,7 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
         console.error('Setup failed:', setupError);
       }
 
-      resolve({ url, password, containerId, port, workspaceId, tempDir: projectDir, receiverDeployResult, senderDeployResult });
+      resolve({ url, password, containerId, port, workspaceId, tempDir: projectDir, receiverDeployResult, senderDeployResult, receiverAddress, senderAddress });
     });
   });
 }

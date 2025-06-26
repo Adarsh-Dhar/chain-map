@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
-import "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
+import {IRouterClient} from "@chainlink/contracts-ccip@1.4.0/src/v0.8/ccip/interfaces/IRouterClient.sol";
+import {Client} from "@chainlink/contracts-ccip@1.4.0/src/v0.8/ccip/libraries/Client.sol";
 
 contract Sender {
-    IRouterClient public router;
+    IRouterClient public immutable router;
     
     event MessageSent(bytes32 messageId);
 
     constructor(address _router) {
-        router = IRRouterClient(_router);
+        router = IRouterClient(_router);
     }
 
-    function sendMessage(uint64 destinationChainSelector, address receiver) external payable returns (bytes32) {
+    function sendMessage(
+        uint64 destinationChainSelector,
+        address receiver
+    ) external returns (bytes32 messageId) {
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
             receiver: abi.encode(receiver),
             data: abi.encode("hello world"),
@@ -23,14 +26,14 @@ contract Sender {
         });
 
         uint256 fee = router.getFee(destinationChainSelector, message);
-        require(msg.value >= fee, "Insufficient fee");
 
-        bytes32 messageId = router.ccipSend{value: fee}(
+        messageId = router.ccipSend{value: fee}(
             destinationChainSelector,
             message
         );
 
         emit MessageSent(messageId);
-        return messageId;
     }
+
+    receive() external payable {}
 }

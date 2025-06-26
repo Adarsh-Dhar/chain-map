@@ -1,7 +1,2 @@
-# Receiver
-Foundry project for CCIP Receiver contract
-
-```bash
-forge build
-forge test
-```
+# Receiver Contract
+Chainlink CCIP message receiver implementation

@@ -1,7 +1,2 @@
-# Sender
-Foundry project for CCIP Sender contract
-
-```bash
-forge build
-forge test
-```
+# Sender Contract
+Chainlink CCIP message sender implementation
