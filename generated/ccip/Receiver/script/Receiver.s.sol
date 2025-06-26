@@ -4,10 +4,10 @@ pragma solidity ^0.8.19;
 import "forge-std/Script.sol";
 import "../src/Receiver.sol";
 
-contract ReceiverScript is Script {
+contract DeployReceiver is Script {
     function run() external {
         vm.startBroadcast();
-        new Receiver(0x1234567890ABCDEF1234567890ABCDEF12345678);
+        new Receiver(0x12344321);
         vm.stopBroadcast();
     }
 }

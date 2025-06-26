@@ -16,6 +16,8 @@ export interface CodeServerInstance {
   senderDeployResult: string;
   receiverAddress: string;
   senderAddress: string;
+  receiverAbi: any | null;
+  senderAbi: any | null;
 }
 
 const MAX_CONTAINERS = 5;
@@ -153,6 +155,8 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
       let senderDeployResult = '';
       let receiverAddress = '';
       let senderAddress = '';
+      let receiverAbi: any = null;
+      let senderAbi: any = null;
       try {
         await runCommandInContainerAsRoot(containerId, [
           "apt-get update",
@@ -265,11 +269,31 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
           senderDeployResult = e?.toString() || 'Sender deploy failed';
           console.error('Sender deploy failed:', senderDeployResult);
         }
+
+        // After deployments, try to read the ABI from artifacts
+        try {
+          const receiverArtifactPath = path.join(projectDir, 'Receiver', 'artifacts', 'contracts', 'Receiver.sol', 'Receiver.json');
+          if (fs.existsSync(receiverArtifactPath)) {
+            const receiverArtifact = JSON.parse(fs.readFileSync(receiverArtifactPath, 'utf8'));
+            receiverAbi = receiverArtifact.abi || null;
+          }
+        } catch (e) {
+          console.warn('Could not read Receiver ABI:', e);
+        }
+        try {
+          const senderArtifactPath = path.join(projectDir, 'Sender', 'artifacts', 'contracts', 'Sender.sol', 'Sender.json');
+          if (fs.existsSync(senderArtifactPath)) {
+            const senderArtifact = JSON.parse(fs.readFileSync(senderArtifactPath, 'utf8'));
+            senderAbi = senderArtifact.abi || null;
+          }
+        } catch (e) {
+          console.warn('Could not read Sender ABI:', e);
+        }
       } catch (setupError) {
         console.error('Setup failed:', setupError);
       }
 
-      resolve({ url, password, containerId, port, workspaceId, tempDir: projectDir, receiverDeployResult, senderDeployResult, receiverAddress, senderAddress });
+      resolve({ url, password, containerId, port, workspaceId, tempDir: projectDir, receiverDeployResult, senderDeployResult, receiverAddress, senderAddress, receiverAbi, senderAbi });
     });
   });
 }
