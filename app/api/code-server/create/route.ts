@@ -27,12 +27,14 @@ export async function POST(req: NextRequest) {
     const instance = await startCodeServer(workspace.id);
     console.log("Code server instance created:", instance);
 
-    // Return only url and password
+    // Return url, password, containerId, tempDir, and deploy logs
     return NextResponse.json({
       url: instance.url,
       password: instance.password,
       containerId: instance.containerId,
-      tempDir: instance.tempDir
+      tempDir: instance.tempDir,
+      receiverDeployResult: instance.receiverDeployResult,
+      senderDeployResult: instance.senderDeployResult
     });
   } catch (error: any) {
     console.error("Error in code server route:", {

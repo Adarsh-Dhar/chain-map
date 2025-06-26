@@ -5,8 +5,8 @@ import "forge-std/Test.sol";
 import "../src/Receiver.sol";
 
 contract ReceiverTest is Test {
-    Receiver receiver;
-    address router = makeAddr("router");
+    Receiver public receiver;
+    address router = address(1);
 
     function setUp() public {
         receiver = new Receiver(router);
@@ -14,7 +14,7 @@ contract ReceiverTest is Test {
 
     function testReceiveMessage() public {
         Client.Any2EVMMessage memory message = Client.Any2EVMMessage({
-            messageId: bytes32(0),
+            messageId: bytes32("id"),
             sourceChainSelector: 1,
             sender: abi.encode(address(0x123)),
             data: abi.encode("hello world"),
@@ -23,7 +23,6 @@ contract ReceiverTest is Test {
 
         vm.prank(router);
         receiver.ccipReceive(message);
-        
         assertEq(receiver.lastMessage(), "hello world");
     }
 }

@@ -12,6 +12,8 @@ export interface CodeServerInstance {
   port: number;
   workspaceId: string;
   tempDir?: string;
+  receiverDeployResult: string;
+  senderDeployResult: string;
 }
 
 const MAX_CONTAINERS = 5;
@@ -145,6 +147,8 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
       const url = `http://localhost:${port}`;
 
       // SYSTEM-WIDE NODE INSTALLATION
+      let receiverDeployResult = '';
+      let senderDeployResult = '';
       try {
         await runCommandInContainerAsRoot(containerId, [
           "apt-get update",
@@ -205,11 +209,37 @@ export async function startCodeServer(workspaceId: string): Promise<CodeServerIn
         const senderDeployPath = path.join(senderIgnitionModulesPath, 'Deploy.ts');
         const senderDeployContent = `// This setup uses Hardhat Ignition to manage smart contract deployments.\n// Learn more about it at https://hardhat.org/ignition\n\nimport { buildModule } from \"@nomicfoundation/hardhat-ignition/modules\";\n\nconst SenderModule = buildModule(\"SenderModule\", (m) => {\n  // Replace with your actual router address or set as parameter with default\n  const router = m.getParameter(\"router\", \"0x1234567890123456789012345678901234567890\");\n  const sender = m.contract(\"Sender\", [router]);\n  return { sender };\n});\n\nexport default SenderModule;\n`;
         fs.writeFileSync(senderDeployPath, senderDeployContent, 'utf8');
+
+        // Run deployment in Receiver
+        let receiverDeployResult = '';
+        try {
+          receiverDeployResult = await runCommandInContainer(
+            containerId,
+            'cd Receiver && yes | npx hardhat ignition deploy ignition/modules/Deploy.ts --network sepolia'
+          );
+          console.log('Receiver deploy result:', receiverDeployResult);
+        } catch (e: any) {
+          receiverDeployResult = e?.toString() || 'Receiver deploy failed';
+          console.error('Receiver deploy failed:', receiverDeployResult);
+        }
+
+        // Run deployment in Sender
+        let senderDeployResult = '';
+        try {
+          senderDeployResult = await runCommandInContainer(
+            containerId,
+            'cd Sender && yes | npx hardhat ignition deploy ignition/modules/Deploy.ts --network sepolia'
+          );
+          console.log('Sender deploy result:', senderDeployResult);
+        } catch (e: any) {
+          senderDeployResult = e?.toString() || 'Sender deploy failed';
+          console.error('Sender deploy failed:', senderDeployResult);
+        }
       } catch (setupError) {
         console.error('Setup failed:', setupError);
       }
 
-      resolve({ url, password, containerId, port, workspaceId, tempDir: projectDir });
+      resolve({ url, password, containerId, port, workspaceId, tempDir: projectDir, receiverDeployResult, senderDeployResult });
     });
   });
 }

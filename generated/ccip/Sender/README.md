@@ -1,11 +1,7 @@
-# Sender Contract
+# Sender
+Foundry project for CCIP Sender contract
 
-Run tests:
 ```bash
+forge build
 forge test
-```
-
-Deploy:
-```bash
-forge script script/Sender.s.sol:DeploySender --broadcast
 ```

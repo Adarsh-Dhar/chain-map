@@ -7,7 +7,7 @@ import "../src/Receiver.sol";
 contract DeployReceiver is Script {
     function run() external {
         vm.startBroadcast();
-        new Receiver(0x1234567890123456789012345678901234567890);
+        new Receiver(0x1234567890ABCDEF1234567890ABCDEF12345678); // Replace with actual router address
         vm.stopBroadcast();
     }
 }

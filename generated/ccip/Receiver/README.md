@@ -1,11 +1,7 @@
-# Receiver Contract
+# Receiver
+Foundry project for CCIP Receiver contract
 
-Run tests:
 ```bash
+forge build
 forge test
-```
-
-Deploy:
-```bash
-forge script script/Receiver.s.sol:DeployReceiver --broadcast
 ```

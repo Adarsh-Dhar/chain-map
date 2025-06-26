@@ -4,29 +4,32 @@ pragma solidity ^0.8.19;
 import "forge-std/Test.sol";
 import "../src/Sender.sol";
 
+contract MockRouter is IRouterClient {
+    function ccipSend(uint64, Client.EVM2AnyMessage calldata) external payable returns (bytes32) {
+        return bytes32("mockId");
+    }
+
+    function getFee(uint64, Client.EVM2AnyMessage calldata) external pure returns (uint256) {
+        return 1e16;
+    }
+
+    function supportInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == type(IRouterClient).interfaceId;
+    }
+}
+
 contract SenderTest is Test {
-    Sender sender;
-    address router = makeAddr("router");
-    address linkToken = makeAddr("linkToken");
+    Sender public sender;
+    MockRouter public router;
 
     function setUp() public {
-        sender = new Sender(router, linkToken);
+        router = new MockRouter();
+        sender = new Sender(address(router));
     }
 
     function testSendMessage() public {
-        vm.mockCall(
-            router,
-            abi.encodeWithSelector(IRouterClient.getFee.selector),
-            abi.encode(1 ether)
-        );
-        vm.mockCall(
-            router,
-            abi.encodeWithSelector(IRouterClient.ccipSend.selector),
-            abi.encode(keccak256("messageId"))
-        );
-        
-        vm.prank(address(0x123));
-        bytes32 messageId = sender.sendMessage(1, address(0x456));
-        assertEq(messageId, keccak256("messageId"));
+        vm.deal(address(this), 1e18);
+        bytes32 messageId = sender.sendMessage{value: 1e16}(1, address(0x123));
+        assertEq(messageId, bytes32("mockId"));
     }
 }
