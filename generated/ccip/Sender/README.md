@@ -1,7 +1,13 @@
 # Sender Contract
-## Setup
-1. forge install
-2. forge build
-## Usage
-Test: forge test
-Deploy: forge script script/Sender.s.sol --broadcast
+Install dependencies:
+```bash
+forge install chainlink/contracts --no-commit
+```
+Build:
+```bash
+forge build
+```
+Test:
+```bash
+forge test
+```
